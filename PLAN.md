@@ -20,7 +20,7 @@
 | Styling & UI | Tailwind CSS, shadcn/ui, Lucide Icons |
 | Auth & All DB | **Alibaba Cloud PolarDB for PostgreSQL** (single source of truth) |
 | Auth Framework | **NextAuth.js v5 (Auth.js)** + Google OAuth + PolarDB adapter |
-| File Storage | **Alibaba Cloud OSS** (email attachments, digest exports) |
+| File Storage | **Alibaba Cloud OSS** — Phase 2 only (Phase 1 stores attachment URLs + digest JSON in PolarDB) |
 | Backend Hosting | **Alibaba Cloud Function Compute 3.0** (Next.js standalone) |
 | Container Registry | **Alibaba Cloud ACR** (Docker image store) |
 | AI — Fast tasks | **Qwen Cloud `qwen3.6-flash`** (classification, quick summaries) |
@@ -118,7 +118,7 @@ graph TB
   - "Archive promotions unless discount > 40 %"
   - "Never send emails without my approval"
   - "Flag emails related to jobs, invoices, and interviews"
-- [ ] OSS export: save daily digest as JSON to Alibaba Cloud OSS
+- [ ] OSS export: move digest JSON from `digest_exports` table → Alibaba Cloud OSS bucket (Phase 2)
 
 ### P2 — Advanced / Backlog
 
@@ -139,7 +139,6 @@ graph TB
 - [x] Add MIT License (`LICENSE` file) — required for hackathon
 - [ ] Install and configure shadcn/ui
 - [ ] Provision **Alibaba Cloud PolarDB for PostgreSQL** instance
-- [ ] Create **Alibaba Cloud OSS** bucket (`email-agent-assets`)
 - [ ] Configure **NextAuth.js v5** with Google provider — request scopes:
   - `https://mail.google.com/`
   - `https://www.googleapis.com/auth/calendar`
@@ -209,12 +208,22 @@ create table email_records (
   recommended_action text check (recommended_action in ('archive','keep','draft_reply')),
   action_status text check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_snippet text,
-  embedding vector(1536),    -- text-embedding-v4 output
-  oss_attachment_key text,   -- Alibaba Cloud OSS key for attachments
-  processed_at timestamptz default now()
+  embedding          vector(1536),    -- text-embedding-v4 output
+  attachment_urls    jsonb       default '[]',  -- Gmail attachment URLs (no OSS in Phase 1)
+  processed_at       timestamptz default now()
 );
 
 create index on email_records using hnsw (embedding vector_cosine_ops);
+
+-- Digest exports stored as JSONB in DB (move to OSS in Phase 2)
+create table digest_exports (
+  id         uuid  primary key default uuid_generate_v4(),
+  user_id    uuid  not null references users(id) on delete cascade,
+  date       date  not null,
+  payload    jsonb not null,
+  created_at timestamptz default now(),
+  unique (user_id, date)
+);
 
 create table user_rules (
   id uuid primary key default uuid_generate_v4(),
@@ -268,8 +277,9 @@ create table user_rules (
 ```
 
 - [ ] Persist to **Alibaba Cloud PolarDB** via `pg` driver
-- [ ] Upload attachment URLs to **Alibaba Cloud OSS** (`src/lib/oss.ts`)
-- [ ] API route: `POST /api/process-emails` (no `maxDuration` — FC supports up to 24 h)
+- [ ] Store attachment URLs as `jsonb` in `email_records.attachment_urls` (no file download in Phase 1)
+- [ ] Store daily digest as `jsonb` in `digest_exports` table
+- [ ] API route: `POST /api/process-emails`
 
 ---
 
@@ -299,7 +309,7 @@ create table user_rules (
 - [ ] Google Calendar tool via `qwen3.7-max` (function calling)
 - [ ] Draft reply generation using `qwen3.7-plus`
 - [ ] Auto-label / archive execution (real Gmail API calls replacing stubs)
-- [ ] Daily digest export → save JSON to **Alibaba Cloud OSS**
+- [ ] Daily digest export → move `digest_exports` payload to **Alibaba Cloud OSS** + provision OSS bucket
 
 ---
 
@@ -354,7 +364,7 @@ src/
 │   ├── mcp/
 │   │   ├── gmail.ts
 │   │   └── calendar.ts
-│   ├── oss.ts
+│   ├── oss.ts                    # Phase 2 only — Alibaba Cloud OSS
 │   ├── db.ts
 │   └── auth.ts                    # NextAuth.js v5 config
 ├── proxy.ts                       # Next.js 16: proxy.ts (not middleware.ts)
@@ -382,11 +392,11 @@ POLARDB_DB=email_agent
 POLARDB_USER=
 POLARDB_PASSWORD=
 
-# Alibaba Cloud OSS
-ALIYUN_OSS_REGION=                # e.g. oss-ap-southeast-1
-ALIYUN_OSS_BUCKET=email-agent-assets
-ALIYUN_ACCESS_KEY_ID=
-ALIYUN_ACCESS_KEY_SECRET=
+# Alibaba Cloud OSS — Phase 2 only (skipped in Phase 1)
+# ALIYUN_OSS_REGION=
+# ALIYUN_OSS_BUCKET=email-agent-assets
+# ALIYUN_ACCESS_KEY_ID=
+# ALIYUN_ACCESS_KEY_SECRET=
 
 # Google (managed via Supabase OAuth)
 GOOGLE_CLIENT_ID=
@@ -400,7 +410,7 @@ GOOGLE_CLIENT_SECRET=
 1. Install shadcn/ui: `npx shadcn@latest init`
 2. Install core deps:
    ```bash
-   npm install next-auth@beta @auth/pg-adapter ai @modelcontextprotocol/sdk pg ali-oss
+   npm install next-auth@beta @auth/pg-adapter ai @modelcontextprotocol/sdk pg
    npm install -D @types/pg
    ```
 3. Provision Alibaba Cloud PolarDB → run full schema (NextAuth tables + application tables)

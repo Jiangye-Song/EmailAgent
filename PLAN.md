@@ -137,14 +137,14 @@ graph TB
 - [x] Initialize Next.js 16 project (TypeScript, Tailwind 4, App Router, `src/` dir, Turbopack default)
 - [x] Initialize git repository
 - [x] Add MIT License (`LICENSE` file) — required for hackathon
-- [ ] Install and configure shadcn/ui
-- [ ] Provision **Alibaba Cloud PolarDB for PostgreSQL** instance
-- [ ] Configure **NextAuth.js v5** with Google provider — request scopes:
+- [x] Install and configure shadcn/ui
+- [x] Provision local Docker PostgreSQL + pgvector (mirrors PolarDB; swap connection string for PolarDB in Phase 6)
+- [x] Configure **NextAuth.js v5** with Google provider — request scopes:
   - `https://mail.google.com/`
   - `https://www.googleapis.com/auth/calendar`
-- [ ] Run PolarDB schema (NextAuth tables + application tables — see below)
-- [ ] Implement login / logout flow (`src/app/(auth)/login/page.tsx`)
-- [ ] Verify `account.access_token` + `account.refresh_token` are persisted in PolarDB `accounts` table
+- [x] Run schema (NextAuth tables + application tables — see below)
+- [x] Implement login / logout flow (`src/app/login/page.tsx`)
+- [x] Verify `account.access_token` + `account.refresh_token` are persisted in `accounts` table
 
 **Alibaba Cloud PolarDB Schema (single DB — all tables):**
 

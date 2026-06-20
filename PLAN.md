@@ -16,7 +16,7 @@
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router), React, TypeScript |
+| Framework | **Next.js 16** (App Router), React 19, TypeScript 5 |
 | Styling & UI | Tailwind CSS, shadcn/ui, Lucide Icons |
 | Auth & All DB | **Alibaba Cloud PolarDB for PostgreSQL** (single source of truth) |
 | Auth Framework | **NextAuth.js v5 (Auth.js)** + Google OAuth + PolarDB adapter |
@@ -31,13 +31,21 @@
 
 **Qwen Cloud API Base URL (International):** `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
 
+**Runtime Requirement:** Node.js 20.9+ (Next.js 16 minimum; Node 18 is not supported).
+
 **Architecture Constraint:** Core logic must be decoupled from API Route handlers (keeps the codebase portable and testable). Use `Promise.all` for concurrent email processing. No `maxDuration` cap applies — Alibaba Cloud Function Compute supports timeouts up to 24 hours, far exceeding Vercel's 60 s limit.
 
-> **Design Decision — Single DB (Option A):** All data (auth sessions, OAuth tokens, email records, user rules) lives in **Alibaba Cloud PolarDB**. NextAuth.js v5 uses the `@auth/pg-adapter` to write `users`, `accounts`, `sessions`, and `verification_tokens` directly into PolarDB. This eliminates the "ghost foreign key" problem that would arise if user_id in PolarDB tried to reference `auth.users` in a separate Supabase instance. Supabase is **not used**.
+**Next.js 16 Key Patterns to Follow:**
+- `proxy.ts` instead of `middleware.ts` (middleware is deprecated in v16; proxy runs Node.js runtime only, no Edge)
+- All Request APIs are async: `await cookies()`, `await headers()`, `await params`, `await searchParams`
+- Use `"use cache"` directive on Server Components / functions that should be cached (replaces PPR)
+- `cacheTag()` / `cacheLife()` are stable (no `unstable_` prefix)
+- `turbopack` config is top-level in `next.config.ts` (not under `experimental`)
+- `output: "standalone"` in `next.config.ts` for Docker/Function Compute deployment
+- Linting: use `eslint` CLI directly — `next lint` is removed in v16
+- Run `npx next typegen` to generate `PageProps` / `LayoutProps` type helpers after adding routes
 
 ---
-
-## Architecture Diagram
 
 ```mermaid
 graph TB
@@ -126,7 +134,7 @@ graph TB
 
 **Goal:** Authenticated user can log in and their tokens are persisted.
 
-- [x] Initialize Next.js project (TypeScript, Tailwind, App Router, `src/` dir)
+- [x] Initialize Next.js 16 project (TypeScript, Tailwind 4, App Router, `src/` dir, Turbopack default)
 - [x] Initialize git repository
 - [x] Add MIT License (`LICENSE` file) — required for hackathon
 - [ ] Install and configure shadcn/ui
@@ -269,7 +277,7 @@ create table user_rules (
 
 **Goal:** Users see their daily digest and can approve/reject AI-recommended actions.
 
-- [ ] `src/app/dashboard/page.tsx` — server component, fetches `email_records` from PolarDB
+- [ ] `src/app/dashboard/page.tsx` — server component with `"use cache"` directive, fetches `email_records` from PolarDB
 - [ ] `src/components/digest/DigestSection.tsx` — renders summaries grouped by category
 - [ ] `src/components/digest/EmailCard.tsx` — single email card (category badge, summary, todos)
 - [ ] `src/components/hitl/ActionQueue.tsx` — lists `pending` records
@@ -299,7 +307,7 @@ create table user_rules (
 
 **Goal:** Backend running on Alibaba Cloud with proof for hackathon submission.
 
-- [ ] `Dockerfile` — Next.js standalone build
+- [ ] `Dockerfile` — Next.js `output: standalone` build (already set in `next.config.ts`)
 - [ ] Push image to **Alibaba Cloud ACR** (Container Registry)
 - [ ] Deploy to **Alibaba Cloud Function Compute 3.0** (Custom Container runtime)
   - Set environment variables (Qwen API key, PolarDB connection string, OSS keys)
@@ -314,19 +322,21 @@ create table user_rules (
 
 ```
 ├── docs/
-│   └── alibaba-cloud-proof.md    # Hackathon: FC URL, OSS bucket, PolarDB proof
-├── Dockerfile                    # Next.js standalone → Alibaba Cloud FC
-├── LICENSE                       # MIT — required by hackathon
+│   └── alibaba-cloud-proof.md
+├── Dockerfile
+├── LICENSE
+├── next.config.ts             # output: standalone, turbopack top-level
 src/
 ├── app/
 │   ├── (auth)/
 │   │   └── login/page.tsx
 │   ├── api/
-│   │   ├── process-emails/route.ts   # maxDuration = 60
+│   │   ├── auth/[...nextauth]/route.ts
+│   │   ├── process-emails/route.ts
 │   │   └── actions/
 │   │       ├── approve/route.ts
 │   │       └── reject/route.ts
-│   ├── dashboard/page.tsx
+│   ├── dashboard/page.tsx         # "use cache" + cacheTag/cacheLife
 │   ├── settings/page.tsx
 │   ├── layout.tsx
 │   └── page.tsx
@@ -339,14 +349,15 @@ src/
 │       └── ActionItem.tsx
 ├── lib/
 │   ├── ai/
-│   │   ├── qwen.ts               # Shared Qwen client (flash / plus / max)
-│   │   └── processor.ts          # processEmailsBatched()
+│   │   ├── qwen.ts
+│   │   └── processor.ts
 │   ├── mcp/
 │   │   ├── gmail.ts
 │   │   └── calendar.ts
-│   ├── oss.ts                    # Alibaba Cloud OSS upload/download
-│   ├── db.ts                     # PolarDB pg client
-│   └── auth.ts                   # NextAuth.js v5 config (Google provider + PolarDB adapter)
+│   ├── oss.ts
+│   ├── db.ts
+│   └── auth.ts                    # NextAuth.js v5 config
+├── proxy.ts                       # Next.js 16: proxy.ts (not middleware.ts)
 └── types/
     └── email.ts
 ```

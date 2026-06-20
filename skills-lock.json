@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "PRD Mastery: Context-Aware, Expert-Driven, and Token-Efficient Refinement": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ba-prd-skills/SKILL.md",
+      "computedHash": "284c66f0941ee1271d69d66677df4e8fe30f5d34f0d33aa95924cbf87cd4a62d"
+    },
+    "ai-sdk-6-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ai-sdk-6-skills/SKILL.md",
+      "computedHash": "954e5469d49493b8170b2f977ff7cf343efb0046cff3e5d9165b93e36860965d"
+    },
+    "authjs-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/authjs-skills/SKILL.md",
+      "computedHash": "43ae8a1f2ddafc02ac2d4d8fc952ec73c54bc8ac3411d589091dfd81d01151cb"
+    },
+    "clerk-nextjs-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/clerk-nextjs-skills/SKILL.md",
+      "computedHash": "8f0570b64b3ff1d0a0e77003b03a9980d13957cf96b149fe25d4fa2cded96f00"
+    },
+    "mcp-server-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mcp-server-skills/SKILL.md",
+      "computedHash": "c6f18fb19911e22d7156613873494bb5833e4c3a112529f747376099895c10ff"
+    },
+    "nextjs16-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nextjs16-skills/SKILL.md",
+      "computedHash": "5c397757268a55b69b99e8d40c7c454adaf48a12acafd91f262f2cb16128880d"
+    },
+    "prisma-orm-v7-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-orm-v7-skills/SKILL.md",
+      "computedHash": "31ed4e62967e69619fe62e0f82890eb64ede7f3edd1fa5cac3ca8735d9735d48"
+    },
+    "resend-integration-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/resend-integration-skills/SKILL.md",
+      "computedHash": "38eb216fc9d7e85378930a6c19237b7e2f3dada1e6e97d59359043ded45f9b12"
+    },
+    "upstash-vector-db-skills": {
+      "source": "gocallum/nextjs16-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/upstash-vector-db-skills/SKILL.md",
+      "computedHash": "73aeaab8e148a003d4cd6c29f1bb8e038ef1666638fb8d49222bc3aabb262fda"
+    }
+  }
+}

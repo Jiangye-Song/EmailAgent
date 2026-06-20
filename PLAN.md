@@ -237,7 +237,7 @@ create table user_rules (
 - [ ] `src/lib/mcp/calendar.ts` (P1)
   - `fetchUpcomingEvents(accessToken)`
   - `createEvent(accessToken, event)`
-- [ ] Add `@modelcontextprotocol/sdk` as MCP transport layer (optional / P1)
+- [ ] Add `@modelcontextprotocol/sdk` as MCP transport layer (P1)
 
 ---
 

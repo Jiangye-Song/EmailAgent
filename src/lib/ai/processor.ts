@@ -57,7 +57,7 @@ async function processOneEmail(
       model: qwenFlash,
       schema: z.object({ category: CategorySchema }),
       system:
-        "Classify the email into exactly one category: newsletter, alert, personal, promotion, or other.",
+        "Classify the email into exactly one category: newsletter, alert, personal, promotion, or other. Return JSON.",
       prompt: emailText,
     }),
 
@@ -66,7 +66,7 @@ async function processOneEmail(
       model: qwenPlus,
       schema: AnalysisSchema,
       system:
-        "You are an email analyst. Extract a concise summary (max 2 sentences), any action items, and the recommended action.",
+        "You are an email analyst. Extract a concise summary (max 2 sentences), any action items, and the recommended action. Return JSON.",
       prompt: emailText,
     }),
 
@@ -85,7 +85,7 @@ async function processOneEmail(
         model: qwenMax,
         schema: RulesSchema,
         system:
-          "Given a list of user-defined email rules, identify which rules apply to this email. Return only the exact text of matching rules.",
+          "Given a list of user-defined email rules, identify which rules apply to this email. Return only the exact text of matching rules as JSON.",
         prompt: `Rules:\n${userRules.map((r, i) => `${i + 1}. ${r}`).join("\n")}\n\nEmail:\n${emailText}`,
       });
       ruleMatches = object.matchedRules;

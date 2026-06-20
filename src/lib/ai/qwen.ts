@@ -1,4 +1,4 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 /**
  * Custom fetch that disables Qwen3's thinking/chain-of-thought mode.
@@ -30,11 +30,16 @@ const fetchNoThinking: typeof globalThis.fetch = async (url, options) => {
 };
 
 /**
- * Single Qwen Cloud provider instance.
- * Uses the international DashScope endpoint (OpenAI-compatible).
- * `compatibility: "compatible"` forces Chat Completions format.
+ * Qwen Cloud provider using @ai-sdk/openai-compatible.
+ *
+ * We use openai-compatible (not @ai-sdk/openai) because:
+ * - @ai-sdk/openai@beta (AI SDK 6) defaults to the OpenAI Responses API (/v1/responses)
+ * - Qwen Cloud only implements the Chat Completions API (/v1/chat/completions)
+ * - @ai-sdk/openai-compatible always uses Chat Completions — correct for all
+ *   third-party OpenAI-compatible providers.
  */
-const qwenProvider = createOpenAI({
+const qwenProvider = createOpenAICompatible({
+  name: "qwen",
   baseURL:
     process.env.QWEN_BASE_URL ??
     "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -45,13 +50,13 @@ const qwenProvider = createOpenAI({
 // ─── Language models ──────────────────────────────────────────────────────────
 
 /** Fast + cheap: email classification */
-export const qwenFlash = qwenProvider("qwen3.6-flash");
+export const qwenFlash = qwenProvider.chatModel("qwen3.6-flash");
 
 /** Balanced: summarization, todo extraction, draft replies */
-export const qwenPlus = qwenProvider("qwen3.7-plus");
+export const qwenPlus = qwenProvider.chatModel("qwen3.7-plus");
 
 /** Complex reasoning: rule evaluation, calendar parsing */
-export const qwenMax = qwenProvider("qwen3.7-max");
+export const qwenMax = qwenProvider.chatModel("qwen3.7-max");
 
 // ─── Embedding model ──────────────────────────────────────────────────────────
 

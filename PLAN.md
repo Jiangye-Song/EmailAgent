@@ -1,16 +1,92 @@
 # Email Digest Agent — Project Plan
 
+## Hackathon Submission Checklist
+
+- [ ] Public GitHub repo with open source license (MIT) visible in About section
+- [ ] Alibaba Cloud deployment proof (`docs/alibaba-cloud-proof.md` + recording)
+- [ ] Architecture diagram (see below)
+- [ ] 3-minute demo video (YouTube / Vimeo)
+- [ ] Text description of features
+- [ ] Track identified: **Productivity & Automation** (AI-powered email workflow)
+- [ ] Blog / Social post (optional, for Blog Post Prize)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 15 (App Router), React, TypeScript |
 | Styling & UI | Tailwind CSS, shadcn/ui, Lucide Icons |
-| Database & Auth | Supabase (PostgreSQL) + Google OAuth (Gmail + Calendar scopes) |
-| AI & Orchestration | Vercel AI SDK, Qwen Cloud API (`qwen-turbo` / `qwen-max`) |
+| Auth & User DB | Supabase (PostgreSQL) + Google OAuth (Gmail + Calendar scopes) |
+| Email/Task DB | **Alibaba Cloud PolarDB for PostgreSQL** |
+| File Storage | **Alibaba Cloud OSS** (email attachments, digest exports) |
+| Backend Hosting | **Alibaba Cloud Function Compute 3.0** (Next.js standalone) |
+| Container Registry | **Alibaba Cloud ACR** (Docker image store) |
+| AI — Fast tasks | **Qwen Cloud `qwen3.6-flash`** (classification, quick summaries) |
+| AI — Balanced | **Qwen Cloud `qwen3.7-plus`** (summarization, todo extraction, drafts) |
+| AI — Reasoning | **Qwen Cloud `qwen3.7-max`** (rule evaluation, calendar parsing) |
+| AI — Embeddings | **Qwen Cloud `text-embedding-v4`** (semantic email search) |
 | Tooling Protocol | `@modelcontextprotocol/sdk` (Gmail / Calendar tools) |
 
-**Architecture Constraint:** Core logic must be decoupled from API Route handlers so the pipeline can be migrated to Upstash Workflow if Vercel's 60 s execution limit is hit. Use `Promise.all` for concurrent email processing.
+**Qwen Cloud API Base URL (International):** `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
+
+**Architecture Constraint:** Core logic must be decoupled from API Route handlers so the pipeline can be migrated to an async queue later if Function Compute's execution limit is hit. Use `Promise.all` for concurrent email processing.
+
+---
+
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Client["Browser / Client"]
+        UI[Next.js Frontend\nDashboard + HITL Queue]
+    end
+
+    subgraph AliyunFC["Alibaba Cloud Function Compute 3.0"]
+        API_PE[POST /api/process-emails]
+        API_APR[POST /api/actions/approve]
+        API_REJ[POST /api/actions/reject]
+        LIB_PROC[lib/ai/processor.ts]
+        LIB_GMAIL[lib/mcp/gmail.ts]
+        LIB_CAL[lib/mcp/calendar.ts]
+    end
+
+    subgraph QwenCloud["Qwen Cloud (DashScope Intl.)"]
+        M_FLASH[qwen3.6-flash\nClassification]
+        M_PLUS[qwen3.7-plus\nSummarize + Todos + Drafts]
+        M_MAX[qwen3.7-max\nRule Engine + Calendar]
+        M_EMBED[text-embedding-v4\nSemantic Search]
+    end
+
+    subgraph AliyunData["Alibaba Cloud Data"]
+        POLAR[(PolarDB PostgreSQL\nemail_records, user_rules)]
+        OSS[OSS Bucket\nAttachments + Exports]
+    end
+
+    subgraph SupaAuth["Supabase"]
+        AUTH[(Auth + user_tokens\nGoogle OAuth tokens)]
+    end
+
+    subgraph Google["Google APIs"]
+        GMAIL[Gmail API]
+        GCAL[Calendar API]
+    end
+
+    UI -->|HTTPS| AliyunFC
+    API_PE --> LIB_PROC
+    API_APR --> LIB_GMAIL
+    LIB_PROC -->|Promise.all| M_FLASH
+    LIB_PROC -->|summarize| M_PLUS
+    LIB_PROC -->|rules| M_MAX
+    LIB_PROC -->|index| M_EMBED
+    LIB_PROC --> POLAR
+    LIB_PROC --> OSS
+    LIB_GMAIL --> GMAIL
+    LIB_CAL --> GCAL
+    UI -->|login/tokens| AUTH
+    AUTH -->|access_token| AliyunFC
+```
 
 ---
 
@@ -19,22 +95,24 @@
 ### P0 — Must Have
 
 - [ ] Gmail Email Reading (OAuth + fetch unread emails)
-- [ ] Email Classification (Newsletter / Alert / Personal / Promotion / …)
-- [ ] Email Summarization (concise per-email summary)
-- [ ] Todo Extraction (actionable tasks from email bodies)
+- [ ] Email Classification via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / …)
+- [ ] Email Summarization via `qwen3.7-plus` (concise per-email summary)
+- [ ] Todo Extraction via `qwen3.7-plus` (actionable tasks from email bodies)
+- [ ] Semantic search index via `text-embedding-v4` (stored in PolarDB pgvector)
 - [ ] Daily Digest Page (`/dashboard`)
 - [ ] HITL Confirmation Queue (Approve / Reject actions before execution)
 
 ### P1 — Bonus
 
-- [ ] Auto-generate Reply Drafts
+- [ ] Auto-generate Reply Drafts via `qwen3.7-plus`
 - [ ] Auto Label / Archive via Gmail API
-- [ ] Google Calendar Integration (parse dates → suggest events)
-- [ ] User-Defined Rules Engine (natural-language rules injected into system prompt)
+- [ ] Google Calendar Integration via `qwen3.7-max` (parse dates → suggest events)
+- [ ] User-Defined Rules Engine — `qwen3.7-max` evaluates rules against each email
   - "Always keep emails from school"
   - "Archive promotions unless discount > 40 %"
   - "Never send emails without my approval"
   - "Flag emails related to jobs, invoices, and interviews"
+- [ ] OSS export: save daily digest as JSON to Alibaba Cloud OSS
 
 ### P2 — Advanced / Backlog
 
@@ -52,18 +130,21 @@
 
 - [x] Initialize Next.js project (TypeScript, Tailwind, App Router, `src/` dir)
 - [x] Initialize git repository
+- [ ] Add MIT License (`LICENSE` file) — required for hackathon
 - [ ] Install and configure shadcn/ui
-- [ ] Create Supabase project
+- [ ] Create Supabase project (for Google OAuth only)
 - [ ] Enable Google OAuth provider in Supabase with scopes:
   - `https://mail.google.com/`
   - `https://www.googleapis.com/auth/calendar`
+- [ ] Provision **Alibaba Cloud PolarDB for PostgreSQL** instance
+- [ ] Create **Alibaba Cloud OSS** bucket (`email-agent-assets`)
 - [ ] Implement login / logout flow (`src/app/(auth)/login/page.tsx`)
 - [ ] Store `access_token` + `refresh_token` in Supabase (`user_tokens` table)
 
-**Supabase Schema (Phase 1):**
+**Supabase Schema (Auth DB — minimal):**
 
 ```sql
--- User OAuth tokens
+-- User OAuth tokens (Supabase, for Google OAuth)
 create table public.user_tokens (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade,
@@ -74,11 +155,18 @@ create table public.user_tokens (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+```
+
+**Alibaba Cloud PolarDB Schema (Application DB):**
+
+```sql
+-- Enable pgvector for semantic search
+create extension if not exists vector;
 
 -- Email processing history
-create table public.email_records (
+create table email_records (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid not null,
   gmail_id text not null,
   subject text,
   sender text,
@@ -89,13 +177,17 @@ create table public.email_records (
   recommended_action text check (recommended_action in ('archive','keep','draft_reply')),
   action_status text check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_snippet text,
+  embedding vector(1536),   -- text-embedding-v4 output
+  oss_attachment_key text,  -- Alibaba Cloud OSS key for attachments
   processed_at timestamptz default now()
 );
 
+create index on email_records using hnsw (embedding vector_cosine_ops);
+
 -- User-defined rules (P1)
-create table public.user_rules (
+create table user_rules (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
+  user_id uuid not null,
   rule_text text not null,
   created_at timestamptz default now()
 );
@@ -120,12 +212,19 @@ create table public.user_rules (
 
 ### Phase 3 — AI Processing Pipeline (Day 2)
 
-**Goal:** Each email is classified, summarised, and has todos extracted concurrently.
+**Goal:** Each email is classified, summarised, and indexed concurrently using multiple Qwen models.
 
+- [ ] `src/lib/ai/qwen.ts` — shared Qwen client
+  - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
+  - Export three clients: `qwenFlash`, `qwenPlus`, `qwenMax`
 - [ ] `src/lib/ai/processor.ts`
-  - Configure Qwen via Vercel AI SDK (`createOpenAI`-compatible base URL)
   - `processEmailsBatched(emails, userRules?)` using `Promise.all`
-- [ ] Structured output prompt → JSON schema:
+  - Per email pipeline:
+    1. **`qwen3.6-flash`** → classify category (fast + cheap)
+    2. **`qwen3.7-plus`** → summarize + extract todos + recommended action
+    3. **`text-embedding-v4`** → generate 1536-dim embedding for semantic search
+    4. *(if rules exist)* **`qwen3.7-max`** → evaluate user rules against email
+- [ ] Structured output (JSON mode) schema:
 
 ```ts
 {
@@ -133,12 +232,13 @@ create table public.user_rules (
   summary: string;          // ≤ 2 sentences
   todos: string[];          // extracted action items
   recommendedAction: "archive" | "keep" | "draft_reply";
+  ruleMatches?: string[];   // rules triggered (P1)
 }
 ```
 
-- [ ] Use `qwen-turbo` for classification + summary, `qwen-max` for complex reasoning
-- [ ] Persist results to `email_records` table via Supabase server client
-- [ ] API route: `POST /api/process-emails` (calls `processEmailsBatched`, `maxDuration = 60`)
+- [ ] Persist to **Alibaba Cloud PolarDB** via `pg` driver
+- [ ] Upload attachment URLs to **Alibaba Cloud OSS** (`src/lib/oss.ts`)
+- [ ] API route: `POST /api/process-emails` (`maxDuration = 60`)
 
 ---
 
@@ -162,17 +262,38 @@ create table public.user_rules (
 **Goal:** Users can define natural-language rules; AI respects them at classification time.
 
 - [ ] `src/app/settings/page.tsx` — textarea to enter / edit rules
-- [ ] Save rules to `user_rules` table
-- [ ] Load rules in `processEmailsBatched` and inject into system prompt
-- [ ] Google Calendar tool integration
-- [ ] Draft reply generation prompt (use `qwen-max`)
+- [ ] Save rules to `user_rules` table (PolarDB)
+- [ ] Load rules in `processEmailsBatched` and pass to `qwen3.7-max` for evaluation
+- [ ] Semantic email search using `text-embedding-v4` + PolarDB pgvector
+- [ ] Google Calendar tool via `qwen3.7-max` (function calling)
+- [ ] Draft reply generation using `qwen3.7-plus`
 - [ ] Auto-label / archive execution (real Gmail API calls replacing stubs)
+- [ ] Daily digest export → save JSON to **Alibaba Cloud OSS**
+
+---
+
+### Phase 6 — Alibaba Cloud Deployment (Day 4–5)
+
+**Goal:** Backend running on Alibaba Cloud with proof for hackathon submission.
+
+- [ ] `Dockerfile` — Next.js standalone build
+- [ ] Push image to **Alibaba Cloud ACR** (Container Registry)
+- [ ] Deploy to **Alibaba Cloud Function Compute 3.0** (Custom Container runtime)
+  - Set environment variables (Qwen API key, PolarDB connection string, OSS keys)
+  - Configure HTTP trigger
+- [ ] Verify API endpoints via FC public URL
+- [ ] Create `docs/alibaba-cloud-proof.md` — document deployed FC function URL, OSS bucket, PolarDB endpoint
+- [ ] Record short proof video showing FC console + live API call
 
 ---
 
 ## Folder Structure (Target)
 
 ```
+├── docs/
+│   └── alibaba-cloud-proof.md    # Hackathon: FC URL, OSS bucket, PolarDB proof
+├── Dockerfile                    # Next.js standalone → Alibaba Cloud FC
+├── LICENSE                       # MIT — required by hackathon
 src/
 ├── app/
 │   ├── (auth)/
@@ -195,10 +316,13 @@ src/
 │       └── ActionItem.tsx
 ├── lib/
 │   ├── ai/
-│   │   └── processor.ts
+│   │   ├── qwen.ts               # Shared Qwen client (flash / plus / max)
+│   │   └── processor.ts          # processEmailsBatched()
 │   ├── mcp/
 │   │   ├── gmail.ts
 │   │   └── calendar.ts
+│   ├── oss.ts                    # Alibaba Cloud OSS upload/download
+│   ├── db.ts                     # PolarDB pg client
 │   └── supabase/
 │       ├── client.ts
 │       └── server.ts
@@ -211,16 +335,29 @@ src/
 ## Environment Variables
 
 ```env
-# Supabase
+# Supabase (Auth only)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
-# Qwen / AI
-QWEN_API_KEY=
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+# Qwen Cloud (International endpoint)
+QWEN_API_KEY=                     # sk-... from home.qwencloud.com/api-keys
+QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 
-# Google (if managing OAuth manually outside Supabase)
+# Alibaba Cloud PolarDB (PostgreSQL-compatible)
+POLARDB_HOST=
+POLARDB_PORT=5432
+POLARDB_DB=email_agent
+POLARDB_USER=
+POLARDB_PASSWORD=
+
+# Alibaba Cloud OSS
+ALIYUN_OSS_REGION=                # e.g. oss-ap-southeast-1
+ALIYUN_OSS_BUCKET=email-agent-assets
+ALIYUN_ACCESS_KEY_ID=
+ALIYUN_ACCESS_KEY_SECRET=
+
+# Google (managed via Supabase OAuth)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
@@ -229,9 +366,28 @@ GOOGLE_CLIENT_SECRET=
 
 ## Next Steps (Start Here)
 
-1. Install shadcn/ui: `npx shadcn@latest init`
-2. Install core deps: `npm install @supabase/supabase-js @supabase/ssr ai @modelcontextprotocol/sdk`
-3. Create Supabase project → run Phase 1 SQL schema
-4. Configure Google OAuth in Supabase dashboard
-5. Build login page and verify token storage → commit
-6. Proceed to Phase 2
+1. Add MIT `LICENSE` file to repo root
+2. Install shadcn/ui: `npx shadcn@latest init`
+3. Install core deps:
+   ```bash
+   npm install @supabase/supabase-js @supabase/ssr ai @modelcontextprotocol/sdk pg ali-oss
+   npm install -D @types/pg
+   ```
+4. Create Supabase project → run Auth schema
+5. Provision Alibaba Cloud PolarDB → run Application DB schema
+6. Create Alibaba Cloud OSS bucket + RAM user with OSS + FC permissions
+7. Get Qwen Cloud API key from `home.qwencloud.com/api-keys`
+8. Configure Google OAuth in Supabase dashboard
+9. Build login page and verify token storage → commit
+10. Proceed to Phase 2
+
+---
+
+## Qwen Model Usage Summary
+
+| Model | Use Case | Why |
+|---|---|---|
+| `qwen3.6-flash` | Email category classification | Cheapest + fastest, simple task |
+| `qwen3.7-plus` | Summarization, todo extraction, draft replies | Best cost/performance balance |
+| `qwen3.7-max` | Rule evaluation, calendar parsing, complex reasoning | Highest accuracy for agent tasks |
+| `text-embedding-v4` | Semantic search index over processed emails | Native Qwen embedding model |

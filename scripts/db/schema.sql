@@ -56,7 +56,7 @@ create table if not exists email_records (
   recommended_action text        check (recommended_action in ('archive','keep','draft_reply')),
   action_status      text        check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_snippet        text,
-  embedding          vector(1536),   -- text-embedding-v4 output
+  embedding          vector(1024),   -- text-embedding-v4 output (1024-dim default)
   attachment_urls    jsonb       default '[]',  -- Gmail attachment download URLs (no OSS in Phase 1)
   processed_at       timestamptz default now()
 );

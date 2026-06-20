@@ -75,7 +75,7 @@ async function processOneEmail(
       prompt: emailText,
     }),
 
-    // text-embedding-v4 — 1536-dim embedding for pgvector semantic search
+    // text-embedding-v4 — 1024-dim embedding for pgvector semantic search
     embed({
       model: qwenEmbedding,
       value: `${email.subject}\n${email.body.slice(0, 500)}`,

@@ -60,7 +60,7 @@ export const qwenMax = qwenProvider.chatModel("qwen3.7-max");
 
 // ─── Embedding model ──────────────────────────────────────────────────────────
 
-/** 1536-dim embeddings for pgvector semantic search */
+/** 1024-dim embeddings for pgvector semantic search (text-embedding-v4 default) */
 export const qwenEmbedding = qwenProvider.textEmbeddingModel(
   "text-embedding-v4",
 );

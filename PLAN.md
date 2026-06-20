@@ -104,7 +104,7 @@ graph TB
 - [ ] Email Classification via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / …)
 - [ ] Email Summarization via `qwen3.7-plus` (concise per-email summary)
 - [ ] Todo Extraction via `qwen3.7-plus` (actionable tasks from email bodies)
-- [ ] Semantic search index via `text-embedding-v4` (stored in PolarDB pgvector)
+- [ ] Semantic search index via `text-embedding-v4` (stored in PolarDB pgvector, 1024-dim)
 - [ ] Daily Digest Page (`/dashboard`)
 - [ ] HITL Confirmation Queue (Approve / Reject actions before execution)
 

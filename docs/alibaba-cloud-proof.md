@@ -7,7 +7,7 @@ This document demonstrates that the Email Digest Agent backend is running on Ali
 | Service | Purpose | Region |
 |---|---|---|
 | **Function Compute 3.0** | Hosts the Next.js API routes (standalone container) | ap-southeast-1 (Singapore) |
-| **PolarDB for PostgreSQL** | Application database — `email_records`, `user_rules` | ap-southeast-1 |
+| **PolarDB for PostgreSQL** | Single DB — auth sessions, OAuth tokens, email records, user rules | ap-southeast-1 |
 | **OSS (Object Storage)** | Stores digest exports and email attachments | oss-ap-southeast-1 |
 | **ACR (Container Registry)** | Stores the Docker image for Function Compute | ap-southeast-1 |
 

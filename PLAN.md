@@ -18,8 +18,8 @@
 |---|---|
 | Framework | Next.js 15 (App Router), React, TypeScript |
 | Styling & UI | Tailwind CSS, shadcn/ui, Lucide Icons |
-| Auth & User DB | Supabase (PostgreSQL) + Google OAuth (Gmail + Calendar scopes) |
-| Email/Task DB | **Alibaba Cloud PolarDB for PostgreSQL** |
+| Auth & All DB | **Alibaba Cloud PolarDB for PostgreSQL** (single source of truth) |
+| Auth Framework | **NextAuth.js v5 (Auth.js)** + Google OAuth + PolarDB adapter |
 | File Storage | **Alibaba Cloud OSS** (email attachments, digest exports) |
 | Backend Hosting | **Alibaba Cloud Function Compute 3.0** (Next.js standalone) |
 | Container Registry | **Alibaba Cloud ACR** (Docker image store) |
@@ -31,7 +31,9 @@
 
 **Qwen Cloud API Base URL (International):** `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
 
-**Architecture Constraint:** Core logic must be decoupled from API Route handlers so the pipeline can be migrated to an async queue later if Function Compute's execution limit is hit. Use `Promise.all` for concurrent email processing.
+**Architecture Constraint:** Core logic must be decoupled from API Route handlers (keeps the codebase portable and testable). Use `Promise.all` for concurrent email processing. No `maxDuration` cap applies — Alibaba Cloud Function Compute supports timeouts up to 24 hours, far exceeding Vercel's 60 s limit.
+
+> **Design Decision — Single DB (Option A):** All data (auth sessions, OAuth tokens, email records, user rules) lives in **Alibaba Cloud PolarDB**. NextAuth.js v5 uses the `@auth/pg-adapter` to write `users`, `accounts`, `sessions`, and `verification_tokens` directly into PolarDB. This eliminates the "ghost foreign key" problem that would arise if user_id in PolarDB tried to reference `auth.users` in a separate Supabase instance. Supabase is **not used**.
 
 ---
 
@@ -64,10 +66,6 @@ graph TB
         OSS[OSS Bucket\nAttachments + Exports]
     end
 
-    subgraph SupaAuth["Supabase"]
-        AUTH[(Auth + user_tokens\nGoogle OAuth tokens)]
-    end
-
     subgraph Google["Google APIs"]
         GMAIL[Gmail API]
         GCAL[Calendar API]
@@ -84,8 +82,8 @@ graph TB
     LIB_PROC --> OSS
     LIB_GMAIL --> GMAIL
     LIB_CAL --> GCAL
-    UI -->|login/tokens| AUTH
-    AUTH -->|access_token| AliyunFC
+    UI -->|NextAuth.js OAuth| POLAR
+    POLAR -->|access_token| AliyunFC
 ```
 
 ---
@@ -130,43 +128,69 @@ graph TB
 
 - [x] Initialize Next.js project (TypeScript, Tailwind, App Router, `src/` dir)
 - [x] Initialize git repository
-- [ ] Add MIT License (`LICENSE` file) — required for hackathon
+- [x] Add MIT License (`LICENSE` file) — required for hackathon
 - [ ] Install and configure shadcn/ui
-- [ ] Create Supabase project (for Google OAuth only)
-- [ ] Enable Google OAuth provider in Supabase with scopes:
-  - `https://mail.google.com/`
-  - `https://www.googleapis.com/auth/calendar`
 - [ ] Provision **Alibaba Cloud PolarDB for PostgreSQL** instance
 - [ ] Create **Alibaba Cloud OSS** bucket (`email-agent-assets`)
+- [ ] Configure **NextAuth.js v5** with Google provider — request scopes:
+  - `https://mail.google.com/`
+  - `https://www.googleapis.com/auth/calendar`
+- [ ] Run PolarDB schema (NextAuth tables + application tables — see below)
 - [ ] Implement login / logout flow (`src/app/(auth)/login/page.tsx`)
-- [ ] Store `access_token` + `refresh_token` in Supabase (`user_tokens` table)
+- [ ] Verify `account.access_token` + `account.refresh_token` are persisted in PolarDB `accounts` table
 
-**Supabase Schema (Auth DB — minimal):**
+**Alibaba Cloud PolarDB Schema (single DB — all tables):**
 
 ```sql
--- User OAuth tokens (Supabase, for Google OAuth)
-create table public.user_tokens (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
-  provider text not null default 'google',
-  access_token text not null,
-  refresh_token text,
-  expires_at timestamptz,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+-- ─── Extensions ────────────────────────────────────────────────────────────
+create extension if not exists vector;   -- semantic search
+create extension if not exists "uuid-ossp";
+
+-- ─── NextAuth.js v5 tables (@auth/pg-adapter) ───────────────────────────────
+-- These are managed automatically by the adapter; listed here for reference.
+create table users (
+  id uuid primary key default uuid_generate_v4(),
+  name text,
+  email text unique,
+  "emailVerified" timestamptz,
+  image text
 );
-```
 
-**Alibaba Cloud PolarDB Schema (Application DB):**
+create table accounts (
+  id uuid primary key default uuid_generate_v4(),
+  "userId" uuid not null references users(id) on delete cascade,
+  type text not null,
+  provider text not null,
+  "providerAccountId" text not null,
+  refresh_token text,
+  access_token text,
+  expires_at bigint,
+  token_type text,
+  scope text,
+  id_token text,
+  session_state text,
+  unique (provider, "providerAccountId")
+);
 
-```sql
--- Enable pgvector for semantic search
-create extension if not exists vector;
+create table sessions (
+  id uuid primary key default uuid_generate_v4(),
+  "sessionToken" text unique not null,
+  "userId" uuid not null references users(id) on delete cascade,
+  expires timestamptz not null
+);
 
--- Email processing history
+create table verification_tokens (
+  identifier text not null,
+  token text not null,
+  expires timestamptz not null,
+  primary key (identifier, token)
+);
+
+-- ─── Application tables ─────────────────────────────────────────────────────
+-- user_id references the NextAuth users table — real FK, same DB, no ghost key
 create table email_records (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
   gmail_id text not null,
   subject text,
   sender text,
@@ -177,17 +201,16 @@ create table email_records (
   recommended_action text check (recommended_action in ('archive','keep','draft_reply')),
   action_status text check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_snippet text,
-  embedding vector(1536),   -- text-embedding-v4 output
-  oss_attachment_key text,  -- Alibaba Cloud OSS key for attachments
+  embedding vector(1536),    -- text-embedding-v4 output
+  oss_attachment_key text,   -- Alibaba Cloud OSS key for attachments
   processed_at timestamptz default now()
 );
 
 create index on email_records using hnsw (embedding vector_cosine_ops);
 
--- User-defined rules (P1)
 create table user_rules (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
   rule_text text not null,
   created_at timestamptz default now()
 );
@@ -238,7 +261,7 @@ create table user_rules (
 
 - [ ] Persist to **Alibaba Cloud PolarDB** via `pg` driver
 - [ ] Upload attachment URLs to **Alibaba Cloud OSS** (`src/lib/oss.ts`)
-- [ ] API route: `POST /api/process-emails` (`maxDuration = 60`)
+- [ ] API route: `POST /api/process-emails` (no `maxDuration` — FC supports up to 24 h)
 
 ---
 
@@ -246,13 +269,13 @@ create table user_rules (
 
 **Goal:** Users see their daily digest and can approve/reject AI-recommended actions.
 
-- [ ] `src/app/dashboard/page.tsx` — server component, fetches `email_records`
+- [ ] `src/app/dashboard/page.tsx` — server component, fetches `email_records` from PolarDB
 - [ ] `src/components/digest/DigestSection.tsx` — renders summaries grouped by category
 - [ ] `src/components/digest/EmailCard.tsx` — single email card (category badge, summary, todos)
 - [ ] `src/components/hitl/ActionQueue.tsx` — lists `pending` records
 - [ ] `src/components/hitl/ActionItem.tsx` — shows recommended action + Approve / Reject buttons
 - [ ] API route: `POST /api/actions/approve` and `POST /api/actions/reject`
-  - Update `action_status` in Supabase
+  - Update `action_status` in PolarDB
   - On approve: execute `archiveEmail` or `createDraft`
 
 ---
@@ -323,9 +346,7 @@ src/
 │   │   └── calendar.ts
 │   ├── oss.ts                    # Alibaba Cloud OSS upload/download
 │   ├── db.ts                     # PolarDB pg client
-│   └── supabase/
-│       ├── client.ts
-│       └── server.ts
+│   └── auth.ts                   # NextAuth.js v5 config (Google provider + PolarDB adapter)
 └── types/
     └── email.ts
 ```
@@ -335,10 +356,9 @@ src/
 ## Environment Variables
 
 ```env
-# Supabase (Auth only)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+# NextAuth.js v5
+NEXTAUTH_URL=
+NEXTAUTH_SECRET=                  # openssl rand -base64 32
 
 # Qwen Cloud (International endpoint)
 QWEN_API_KEY=                     # sk-... from home.qwencloud.com/api-keys
@@ -366,20 +386,19 @@ GOOGLE_CLIENT_SECRET=
 
 ## Next Steps (Start Here)
 
-1. Add MIT `LICENSE` file to repo root
-2. Install shadcn/ui: `npx shadcn@latest init`
-3. Install core deps:
+1. Install shadcn/ui: `npx shadcn@latest init`
+2. Install core deps:
    ```bash
-   npm install @supabase/supabase-js @supabase/ssr ai @modelcontextprotocol/sdk pg ali-oss
+   npm install next-auth@beta @auth/pg-adapter ai @modelcontextprotocol/sdk pg ali-oss
    npm install -D @types/pg
    ```
-4. Create Supabase project → run Auth schema
-5. Provision Alibaba Cloud PolarDB → run Application DB schema
-6. Create Alibaba Cloud OSS bucket + RAM user with OSS + FC permissions
-7. Get Qwen Cloud API key from `home.qwencloud.com/api-keys`
-8. Configure Google OAuth in Supabase dashboard
-9. Build login page and verify token storage → commit
-10. Proceed to Phase 2
+3. Provision Alibaba Cloud PolarDB → run full schema (NextAuth tables + application tables)
+4. Create Alibaba Cloud OSS bucket + RAM user with OSS + FC permissions
+5. Get Qwen Cloud API key from `home.qwencloud.com/api-keys`
+6. Create Google OAuth credentials in Google Cloud Console (set redirect URI to `/api/auth/callback/google`)
+7. Configure `src/lib/auth.ts` with Google provider + `@auth/pg-adapter`
+8. Build login page and verify `accounts` table in PolarDB has `access_token` after login
+9. Proceed to Phase 2
 
 ---
 

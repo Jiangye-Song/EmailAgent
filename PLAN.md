@@ -239,14 +239,16 @@ create table user_rules (
 
 **Goal:** Utility layer that reads/writes Gmail, fully decoupled from API routes.
 
-- [ ] `src/lib/mcp/gmail.ts`
-  - `fetchUnreadEmails(accessToken, limit)` → `Email[]`
-  - `archiveEmail(accessToken, id)` → stub returning `{ success: true }`
-  - `createDraft(accessToken, to, subject, body)` → stub
-- [ ] `src/lib/mcp/calendar.ts` (P1)
-  - `fetchUpcomingEvents(accessToken)`
-  - `createEvent(accessToken, event)`
-- [ ] Add `@modelcontextprotocol/sdk` as MCP transport layer (P1)
+- [x] `src/types/email.ts` — `Email`, `EmailAttachment`, `ProcessedEmail` types
+- [x] `src/lib/tokens.ts` — `getGoogleAccessToken(userId)` with automatic refresh
+- [x] `src/lib/mcp/gmail.ts`
+  - [x] `fetchUnreadEmails(accessToken, limit)` → `Email[]` (concurrent with `Promise.all`)
+  - [x] `archiveEmail(accessToken, id)` → stub
+  - [x] `createDraft(accessToken, to, subject, body)` → stub
+- [x] `src/lib/mcp/calendar.ts`
+  - [x] `fetchUpcomingEvents(accessToken)` → stub
+  - [x] `createEvent(accessToken, event)` → stub
+- [x] `src/app/api/process-emails/route.ts` → stub route (Phase 3 adds AI pipeline)
 
 ---
 

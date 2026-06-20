@@ -256,17 +256,18 @@ create table user_rules (
 
 **Goal:** Each email is classified, summarised, and indexed concurrently using multiple Qwen models.
 
-- [ ] `src/lib/ai/qwen.ts` — shared Qwen client
+- [x] `src/lib/ai/qwen.ts` — shared Qwen client
   - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
   - Export three clients: `qwenFlash`, `qwenPlus`, `qwenMax`
-- [ ] `src/lib/ai/processor.ts`
-  - `processEmailsBatched(emails, userRules?)` using `Promise.all`
-  - Per email pipeline:
+- [x] `src/lib/ai/processor.ts`
+  - `processEmailsBatched(emails, userId, userRules?)` using `Promise.allSettled`
+  - Per email pipeline (Steps 1–3 run concurrently via `Promise.all`):
     1. **`qwen3.6-flash`** → classify category (fast + cheap)
     2. **`qwen3.7-plus`** → summarize + extract todos + recommended action
     3. **`text-embedding-v4`** → generate 1536-dim embedding for semantic search
     4. *(if rules exist)* **`qwen3.7-max`** → evaluate user rules against email
-- [ ] Structured output (JSON mode) schema:
+  - `saveDailyDigest(userId, results)` → upsert JSONB into `digest_exports`
+- [x] Structured output (Zod + `generateObject`) schema:
 
 ```ts
 {
@@ -274,14 +275,14 @@ create table user_rules (
   summary: string;          // ≤ 2 sentences
   todos: string[];          // extracted action items
   recommendedAction: "archive" | "keep" | "draft_reply";
-  ruleMatches?: string[];   // rules triggered (P1)
+  ruleMatches?: string[];   // rules triggered (Phase 5)
 }
 ```
 
-- [ ] Persist to **Alibaba Cloud PolarDB** via `pg` driver
-- [ ] Store attachment URLs as `jsonb` in `email_records.attachment_urls` (no file download in Phase 1)
-- [ ] Store daily digest as `jsonb` in `digest_exports` table
-- [ ] API route: `POST /api/process-emails`
+- [x] Persist to **PostgreSQL** via `pg` driver (embedding as `::vector`)
+- [x] Store attachment URLs as `jsonb` in `email_records.attachment_urls`
+- [x] Store daily digest as `jsonb` in `digest_exports` table
+- [x] API route: `POST /api/process-emails` (fetches emails → processes → saves digest → returns results)
 
 ---
 

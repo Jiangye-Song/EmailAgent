@@ -290,12 +290,14 @@ create table user_rules (
 
 **Goal:** Users see their daily digest and can approve/reject AI-recommended actions.
 
-- [ ] `src/app/dashboard/page.tsx` — server component with `"use cache"` directive, fetches `email_records` from PolarDB
-- [ ] `src/components/digest/DigestSection.tsx` — renders summaries grouped by category
-- [ ] `src/components/digest/EmailCard.tsx` — single email card (category badge, summary, todos)
-- [ ] `src/components/hitl/ActionQueue.tsx` — lists `pending` records
-- [ ] `src/components/hitl/ActionItem.tsx` — shows recommended action + Approve / Reject buttons
-- [ ] API route: `POST /api/actions/approve` and `POST /api/actions/reject`
+- [x] `src/app/dashboard/page.tsx` — server component with `"use cache"` directive, fetches `email_records` from PolarDB
+- [x] `src/components/digest/DigestSection.tsx` — renders summaries grouped by category
+- [x] `src/components/digest/EmailCard.tsx` — single email card (category badge, summary, todos)
+- [x] `src/components/hitl/ActionQueue.tsx` — lists `pending` records
+- [x] `src/components/hitl/ActionItem.tsx` — shows recommended action + Approve / Reject buttons
+- [x] `src/components/dashboard/TriggerButton.tsx` — client component that calls `/api/process-emails` and refreshes
+- [x] `src/lib/actions/email-actions.ts` — `approveAction` / `rejectAction` server actions with `revalidatePath`
+- [x] API route: `POST /api/actions/approve` and `POST /api/actions/reject`
   - Update `action_status` in PolarDB
   - On approve: execute `archiveEmail` or `createDraft`
 

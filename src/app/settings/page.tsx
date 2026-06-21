@@ -2,6 +2,8 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
+import { CredentialsForm } from "@/components/settings/CredentialsForm";
+import { getCredentialMeta } from "@/lib/actions/credential-actions";
 import { Separator } from "@/components/ui/separator";
 import { Settings, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +21,10 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const rules = await getUserRules(session.user.id);
+  const [rules, credentialMeta] = await Promise.all([
+    getUserRules(session.user.id),
+    getCredentialMeta(),
+  ]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -41,6 +46,19 @@ export default async function SettingsPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+        {/* Email account section */}
+        <section className="space-y-4">
+          <div>
+            <h1 className="text-xl font-bold">Email account</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Connect your mailbox via IMAP/SMTP. Works with Gmail, Outlook,
+              Fastmail, Yahoo, or any standard mail server.
+            </p>
+          </div>
+          <Separator />
+          <CredentialsForm existing={credentialMeta} />
+        </section>
+
         {/* Rules section */}
         <section className="space-y-4">
           <div>

@@ -3,18 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
-import { getGoogleAccessToken } from "@/lib/tokens";
-import { archiveEmail, createDraft } from "@/lib/mcp/gmail";
+import { getCredentials } from "@/lib/credentials";
+import { archiveEmail, createDraft } from "@/lib/mcp/imap";
 
 export async function approveAction(recordId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const { rows } = await pool.query<{
-    gmail_id: string;
+    message_id: string;
     recommended_action: string;
   }>(
-    `SELECT gmail_id, recommended_action
+    `SELECT message_id, recommended_action
      FROM email_records
      WHERE id = $1 AND user_id = $2`,
     [recordId, session.user.id],
@@ -22,13 +22,13 @@ export async function approveAction(recordId: string) {
 
   if (!rows.length) throw new Error("Record not found");
 
-  const { gmail_id, recommended_action } = rows[0];
-  const accessToken = await getGoogleAccessToken(session.user.id);
+  const { message_id, recommended_action } = rows[0];
+  const creds = await getCredentials(session.user.id);
 
   if (recommended_action === "archive") {
-    await archiveEmail(accessToken, gmail_id);
+    await archiveEmail(creds, message_id);
   } else if (recommended_action === "draft_reply") {
-    await createDraft(accessToken, "", "Re: (email)", "");
+    await createDraft(creds, "", "Re: (email)", "");
   }
 
   await pool.query(

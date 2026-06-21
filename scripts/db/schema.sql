@@ -46,7 +46,7 @@ create table if not exists verification_tokens (
 create table if not exists email_records (
   id                 uuid        primary key default uuid_generate_v4(),
   user_id            uuid        not null references users(id) on delete cascade,
-  gmail_id           text        not null,
+  message_id         text        not null,
   subject            text,
   sender             text,
   received_at        timestamptz,
@@ -79,4 +79,20 @@ create table if not exists user_rules (
   user_id    uuid        not null references users(id) on delete cascade,
   rule_text  text        not null,
   created_at timestamptz default now()
+);
+
+-- IMAP/SMTP credentials (app password encrypted with AES-256-GCM at application layer)
+create table if not exists email_credentials (
+  id         uuid        primary key default uuid_generate_v4(),
+  user_id    uuid        not null references users(id) on delete cascade,
+  imap_host  text        not null,
+  imap_port  int         not null default 993,
+  smtp_host  text        not null,
+  smtp_port  int         not null default 587,
+  username   text        not null,
+  -- AES-256-GCM encrypted: <iv_hex>:<tag_hex>:<ciphertext_hex>
+  secret_enc text        not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id)
 );

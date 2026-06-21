@@ -1,7 +1,7 @@
 // DB row type returned by email_records queries
 export type EmailRecord = {
   id: string;
-  gmail_id: string;
+  message_id: string;
   subject: string;
   sender: string;
   received_at: Date | null;

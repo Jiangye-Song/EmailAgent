@@ -3,13 +3,13 @@
 export type EmailAttachment = {
   filename: string;
   mimeType: string;
-  /** Gmail attachment ID — use to download via Gmail API if needed */
-  attachmentId: string;
+  /** IMAP body section path (e.g. "2" or "1.2") for on-demand download */
+  sectionPath: string;
   size: number;
 };
 
 export type Email = {
-  /** Gmail message ID */
+  /** IMAP UID (as string) */
   id: string;
   threadId: string;
   subject: string;
@@ -17,12 +17,13 @@ export type Email = {
   to: string;
   /** RFC 2822 date string from the message header */
   date: string;
-  /** Short plain-text preview provided by Gmail */
+  /** Short plain-text preview (first 200 chars of body) */
   snippet: string;
   /** Full plain-text body (decoded from MIME parts) */
   body: string;
   attachments: EmailAttachment[];
-  labelIds: string[];
+  /** IMAP flags e.g. ["\\Seen", "\\Flagged"] */
+  flags: string[];
 };
 
 // ─── AI processing output ────────────────────────────────────────────────────

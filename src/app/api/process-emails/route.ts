@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getGoogleAccessToken } from "@/lib/tokens";
-import { fetchUnreadEmails } from "@/lib/mcp/gmail";
+import { getCredentials } from "@/lib/credentials";
+import { fetchUnreadEmails } from "@/lib/mcp/imap";
 import { processEmailsBatched, saveDailyDigest } from "@/lib/ai/processor";
 import { pool } from "@/lib/db";
 
@@ -22,8 +22,8 @@ export async function POST(req: Request) {
   );
   const userRules = ruleRows.map((r) => r.rule_text);
 
-  const accessToken = await getGoogleAccessToken(userId);
-  const emails = await fetchUnreadEmails(accessToken, limit);
+  const creds = await getCredentials(userId);
+  const emails = await fetchUnreadEmails(creds, limit);
 
   if (emails.length === 0) {
     return NextResponse.json({ message: "No unread emails found.", count: 0 });

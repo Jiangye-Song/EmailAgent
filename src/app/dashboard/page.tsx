@@ -11,7 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DigestSection } from "@/components/digest/DigestSection";
 import { ActionQueue } from "@/components/hitl/ActionQueue";
 import { TriggerButton } from "@/components/dashboard/TriggerButton";
-import { Mail, LogOut } from "lucide-react";
+import { Mail, LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 import type { EmailRecord } from "@/types/db";
 
 async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
@@ -67,6 +68,13 @@ export default async function DashboardPage() {
             <span className="font-semibold text-sm">Email Digest Agent</span>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-accent transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Rules</span>
+            </Link>
             <Avatar className="h-8 w-8">
               <AvatarImage
                 src={session.user?.image ?? undefined}

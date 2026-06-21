@@ -307,13 +307,13 @@ create table user_rules (
 
 **Goal:** Users can define natural-language rules; AI respects them at classification time.
 
-- [ ] `src/app/settings/page.tsx` — textarea to enter / edit rules
-- [ ] Save rules to `user_rules` table (PolarDB)
-- [ ] Load rules in `processEmailsBatched` and pass to `qwen3.7-max` for evaluation
+- [x] `src/app/settings/page.tsx` — textarea to enter / edit rules
+- [x] Save rules to `user_rules` table (PolarDB)
+- [x] Load rules in `processEmailsBatched` and pass to `qwen3.7-max` for evaluation
+- [x] Auto-label / archive execution (real Gmail API calls replacing stubs)
 - [ ] Semantic email search using `text-embedding-v4` + PolarDB pgvector
 - [ ] Google Calendar tool via `qwen3.7-max` (function calling)
 - [ ] Draft reply generation using `qwen3.7-plus`
-- [ ] Auto-label / archive execution (real Gmail API calls replacing stubs)
 - [ ] Daily digest export → move `digest_exports` payload to **Alibaba Cloud OSS** + provision OSS bucket
 
 ---

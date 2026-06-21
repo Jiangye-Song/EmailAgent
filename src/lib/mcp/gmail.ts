@@ -140,28 +140,46 @@ export async function fetchUnreadEmails(
 
 /**
  * Archive an email by removing the INBOX label.
- * Stub in Phase 2 — real Gmail API call added in Phase 5.
  */
 export async function archiveEmail(
-  _accessToken: string,
+  accessToken: string,
   id: string,
 ): Promise<{ success: boolean }> {
-  // Phase 5: POST /messages/{id}/modify { removeLabelIds: ["INBOX"] }
-  console.log(`[stub] archiveEmail → ${id}`);
+  await gmailFetch(accessToken, `/messages/${id}/modify`, {
+    method: "POST",
+    body: JSON.stringify({ removeLabelIds: ["INBOX"] }),
+  });
   return { success: true };
 }
 
 /**
- * Create a Gmail draft.
- * Stub in Phase 2 — real RFC-2822 encoding + Gmail API call added in Phase 5.
+ * Create a Gmail draft from a plain-text body.
  */
 export async function createDraft(
-  _accessToken: string,
+  accessToken: string,
   to: string,
   subject: string,
   body: string,
 ): Promise<{ success: boolean; draftId?: string }> {
-  // Phase 5: POST /drafts with base64url-encoded RFC 2822 message
-  console.log(`[stub] createDraft → to=${to} subject=${subject} (${body.length} chars)`);
-  return { success: true };
+  // Build a minimal RFC 2822 message and base64url-encode it
+  const message = [
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `Content-Type: text/plain; charset=utf-8`,
+    ``,
+    body,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(message)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const result = await gmailFetch<{ id: string }>(accessToken, `/drafts`, {
+    method: "POST",
+    body: JSON.stringify({ message: { raw: encoded } }),
+  });
+
+  return { success: true, draftId: result.id };
 }

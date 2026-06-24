@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { EmailList } from "@/components/inbox/EmailList";
+import { EmailDetail } from "@/components/inbox/EmailDetail";
 import type { EmailRecord } from "@/types/db";
 
 type Props = {
@@ -39,9 +40,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
           onSelect={setSelectedId}
         />
       </div>
-      <div className="flex-1 overflow-y-auto p-4 text-xs text-muted-foreground">
-        {selectedRecord ? `Selected: ${selectedRecord.subject}` : `Forward to: ${forwardingAddress}`}
-      </div>
+      <EmailDetail record={selectedRecord} forwardingAddress={forwardingAddress} />
     </div>
   );
 }

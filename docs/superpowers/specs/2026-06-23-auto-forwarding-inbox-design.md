@@ -98,28 +98,6 @@ User's default mail app handles the send.
 
 ---
 
-## Database Changes
-
-### New column on `email_records`
-```sql
-alter table email_records
-  add column if not exists calendar_events jsonb default '[]';
-```
-
-### New table
-```sql
-create table push_subscriptions (
-  id        uuid primary key default uuid_generate_v4(),
-  user_id   uuid not null references users(id) on delete cascade,
-  endpoint  text not null unique,
-  p256dh    text not null,
-  auth      text not null,
-  created_at timestamptz default now()
-);
-```
-
----
-
 ## File Changes
 
 ### Removed
@@ -169,7 +147,93 @@ create table push_subscriptions (
 
 ---
 
-## Environment Variables
+## Multi-User Inbound Routing
+
+**Decision:** Multi-user. Each user gets a unique forwarding address. Single shared Cloudflare catch-all receives all inbound mail; `/api/inbound` looks up the user by the `to` address.
+
+### Address Generation
+
+On first login (or in the settings page on first visit), auto-generate a unique forwarding address for the user and persist it:
+
+```ts
+// format: {8-char uuid prefix}@{INBOUND_DOMAIN}
+const forwarding_address = `${userId.replace(/-/g,'').slice(0,8)}@${process.env.INBOUND_DOMAIN}`
+```
+
+Saved to `users.forwarding_address`. Shown in the Settings page as:
+> "Forward your Gmail to: `abc12345@yourdomain.com`"
+
+### Cloudflare Email Routing Config
+
+In Cloudflare Dashboard → Email Routing:
+- Add a **catch-all** rule: `*@yourdomain.com` → send to Email Worker
+- The Email Worker is already receiving all inbound; it extracts `to` and forwards it
+
+### Cloudflare Email Worker (updated)
+
+The worker reads the raw MIME `To:` header and passes it as `X-Recipient` to `/api/inbound`:
+
+```ts
+export default {
+  async email(message, env) {
+    const body = await new Response(message.raw).arrayBuffer()
+    await fetch(env.INBOUND_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'message/rfc822',
+        'X-CF-Secret': env.CF_INBOUND_SECRET,
+        'X-Recipient': message.to,   // ← the forwarding address
+      },
+      body,
+    })
+  }
+}
+```
+
+### `/api/inbound` (updated)
+
+```ts
+const recipient = req.headers.get('X-Recipient')   // e.g. abc12345@yourdomain.com
+const user = await db.query(
+  'SELECT id FROM users WHERE forwarding_address = $1',
+  [recipient]
+)
+if (!user.rows[0]) return new Response('unknown recipient', { status: 404 })
+const userId = user.rows[0].id
+// → processEmailsBatched([email], userId, userRules)
+```
+
+---
+
+## Database Changes (updated)
+
+### Modified column on `users`
+```sql
+alter table users
+  add column if not exists forwarding_address text unique;
+```
+
+### New column on `email_records`
+```sql
+alter table email_records
+  add column if not exists calendar_events jsonb default '[]';
+```
+
+### New table
+```sql
+create table push_subscriptions (
+  id        uuid primary key default uuid_generate_v4(),
+  user_id   uuid not null references users(id) on delete cascade,
+  endpoint  text not null unique,
+  p256dh    text not null,
+  auth      text not null,
+  created_at timestamptz default now()
+);
+```
+
+---
+
+## Environment Variables (updated)
 
 ### Removed
 ```
@@ -180,6 +244,7 @@ GOOGLE_SCOPES (implicit)
 ### Added
 ```env
 CF_INBOUND_SECRET=        # shared secret between Cloudflare Worker and /api/inbound
+INBOUND_DOMAIN=           # e.g. emailagent.xyz — domain bought on Cloudflare
 VAPID_PUBLIC_KEY=          # Web Push VAPID public key
 VAPID_PRIVATE_KEY=         # Web Push VAPID private key
 VAPID_SUBJECT=mailto:huckzishere@gmail.com
@@ -187,6 +252,9 @@ VAPID_SUBJECT=mailto:huckzishere@gmail.com
 
 ---
 
-## Open Questions
-- **Domain for Cloudflare:** Cloudflare Email Workers requires a domain managed by Cloudflare DNS. Do you have one available, or do we need to provision one?
-- **Single-user vs multi-user inbound routing:** For the hackathon, single-user (hardcoded userId from env) is simplest. Multi-user would require mapping forwarding addresses per user.
+## Decisions Closed
+
+| Question | Decision |
+|---|---|
+| Domain for Cloudflare | Buy a new domain directly on Cloudflare — DNS managed by Cloudflare automatically |
+| Single vs multi-user routing | Multi-user — each user gets a unique `{prefix}@domain` address stored in `users.forwarding_address` |

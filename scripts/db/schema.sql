@@ -80,3 +80,31 @@ create table if not exists user_rules (
   rule_text  text        not null,
   created_at timestamptz default now()
 );
+
+-- ─── Phase 6 migration — auto-forwarding inbox ──────────────────────────────
+
+-- Each user gets a unique forwarding address e.g. abc12345@yourdomain.com
+alter table users
+  add column if not exists forwarding_address text unique;
+
+-- AI-extracted calendar events from email body
+alter table email_records
+  add column if not exists calendar_events jsonb default '[]';
+
+-- AI-generated draft reply body (populated when recommended_action = 'draft_reply')
+alter table email_records
+  add column if not exists draft_body text;
+
+-- Unique index so ON CONFLICT (gmail_id, user_id) works for deduplication
+create unique index if not exists email_records_gmail_id_user_id_idx
+  on email_records (gmail_id, user_id);
+
+-- Web Push subscriptions for PWA notifications
+create table if not exists push_subscriptions (
+  id         uuid        primary key default uuid_generate_v4(),
+  user_id    uuid        not null references users(id) on delete cascade,
+  endpoint   text        not null unique,
+  p256dh     text        not null,
+  auth       text        not null,
+  created_at timestamptz default now()
+);

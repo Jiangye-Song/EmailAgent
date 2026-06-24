@@ -12,25 +12,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
       authorization: {
         params: {
-          // offline access → gets refresh_token on first consent
           prompt: "consent",
-          access_type: "offline",
+          access_type: "online",
           response_type: "code",
-          // Gmail + Calendar scopes on top of the default openid/email/profile
-          scope: [
-            "openid",
-            "email",
-            "profile",
-            "https://mail.google.com/",
-            "https://www.googleapis.com/auth/calendar",
-          ].join(" "),
+          scope: "openid email profile",
         },
       },
     }),
   ],
 
   callbacks: {
-    // Expose user.id on the session so server components can read it
     session({ session, user }) {
       session.user.id = user.id;
       return session;

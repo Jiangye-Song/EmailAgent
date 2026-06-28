@@ -16,9 +16,12 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 
 export default function RegisterPage() {
+  const theme = useTheme();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -65,9 +68,14 @@ export default function RegisterPage() {
         placeItems: "center",
         p: 2,
         background:
-          "radial-gradient(circle at 80% 15%, #fde68a 0%, transparent 36%), radial-gradient(circle at 5% 80%, #bfdbfe 0%, transparent 36%), linear-gradient(160deg, #eff6ff 0%, #fffbeb 100%)",
+          theme.palette.mode === "dark"
+            ? "radial-gradient(circle at 80% 15%, rgba(251,191,36,0.16) 0%, transparent 36%), radial-gradient(circle at 5% 80%, rgba(59,130,246,0.16) 0%, transparent 36%), linear-gradient(160deg, #020617 0%, #111827 100%)"
+            : "radial-gradient(circle at 80% 15%, #fde68a 0%, transparent 36%), radial-gradient(circle at 5% 80%, #bfdbfe 0%, transparent 36%), linear-gradient(160deg, #eff6ff 0%, #fffbeb 100%)",
       }}
     >
+      <Box sx={{ position: "fixed", top: 12, right: 12 }}>
+        <ThemeModeToggle />
+      </Box>
       <Container maxWidth="sm" disableGutters>
         <Card sx={{ p: { xs: 2, sm: 3 } }}>
           <CardContent>

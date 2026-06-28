@@ -4,6 +4,7 @@ import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
+import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import Link from "next/link";
 import {
   AppBar,
@@ -59,6 +60,7 @@ export default async function SettingsPage() {
           <Button component={Link} href="/inbox" startIcon={<ArrowBackRoundedIcon />}>
             Back to inbox
           </Button>
+          <ThemeModeToggle />
         </Toolbar>
       </AppBar>
 

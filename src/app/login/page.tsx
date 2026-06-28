@@ -17,9 +17,12 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
+import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 
 export default function LoginPage() {
+  const theme = useTheme();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +57,14 @@ export default function LoginPage() {
         placeItems: "center",
         p: 2,
         background:
-          "radial-gradient(circle at 20% 20%, #d1fae5 0%, transparent 40%), radial-gradient(circle at 80% 0%, #fed7aa 0%, transparent 35%), linear-gradient(135deg, #f8fafc 0%, #fff7ed 100%)",
+          theme.palette.mode === "dark"
+            ? "radial-gradient(circle at 20% 20%, rgba(45,212,191,0.18) 0%, transparent 40%), radial-gradient(circle at 80% 0%, rgba(251,146,60,0.18) 0%, transparent 35%), linear-gradient(135deg, #020617 0%, #0f172a 100%)"
+            : "radial-gradient(circle at 20% 20%, #d1fae5 0%, transparent 40%), radial-gradient(circle at 80% 0%, #fed7aa 0%, transparent 35%), linear-gradient(135deg, #f8fafc 0%, #fff7ed 100%)",
       }}
     >
+      <Box sx={{ position: "fixed", top: 12, right: 12 }}>
+        <ThemeModeToggle />
+      </Box>
       <Container maxWidth="sm" disableGutters>
         <Card sx={{ p: { xs: 2, sm: 3 }, backdropFilter: "blur(8px)" }}>
           <CardContent>

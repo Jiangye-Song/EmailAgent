@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { EmailList } from "@/components/inbox/EmailList";
 import { EmailDetail } from "@/components/inbox/EmailDetail";
@@ -80,6 +81,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
               <SettingsRoundedIcon />
             </IconButton>
           </Tooltip>
+          <ThemeModeToggle />
         </Toolbar>
       </AppBar>
 

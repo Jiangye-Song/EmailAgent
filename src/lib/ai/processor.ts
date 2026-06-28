@@ -120,9 +120,9 @@ async function processOneEmail(
 
   await pool.query(
     `INSERT INTO email_records (
-       user_id, gmail_id, subject, sender, received_at,
+       user_id, message_id, subject, sender, received_at,
        category, summary, todos, recommended_action,
-       raw_snippet, embedding, attachment_urls
+       raw_body, embedding, attachment_urls
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector, $12)
      ON CONFLICT DO NOTHING`,
     [
@@ -142,7 +142,6 @@ async function processOneEmail(
           filename: a.filename,
           mimeType: a.mimeType,
           size: a.size,
-          attachmentId: a.attachmentId,
         })),
       ),
     ],

@@ -2,10 +2,11 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
+import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
+import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { Separator } from "@/components/ui/separator";
 import { Settings, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 async function getUserRules(userId: string): Promise<string[]> {
   const { rows } = await pool.query<{ rule_text: string }>(
@@ -19,7 +20,10 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const rules = await getUserRules(session.user.id);
+  const [rules, forwardingAddress] = await Promise.all([
+    getUserRules(session.user.id),
+    ensureForwardingAddress(session.user.id),
+  ]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -31,27 +35,41 @@ export default async function SettingsPage() {
             <span className="font-semibold text-sm">Settings</span>
           </div>
           <Link
-            href="/dashboard"
+            href="/inbox"
             className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-accent transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
+            Back to inbox
           </Link>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+        {/* Forwarding address section */}
+        <section className="space-y-4">
+          <div>
+            <h1 className="text-xl font-bold">Your forwarding address</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Add this address to the auto-forward rules in your email app. Every
+              email forwarded here will be processed by the AI and appear in your
+              inbox.
+            </p>
+          </div>
+          <Separator />
+          <ForwardingInfo address={forwardingAddress} />
+        </section>
+
         {/* Rules section */}
         <section className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold">User-defined rules</h1>
+            <h1 className="text-xl font-bold">AI rules</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Write plain-language rules to guide how your emails are classified
               and acted on. Rules are applied by{" "}
               <code className="text-xs bg-muted px-1 py-0.5 rounded">
                 qwen3.7-max
               </code>{" "}
-              during each digest run.
+              during processing.
             </p>
           </div>
           <Separator />

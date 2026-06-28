@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Mail, Loader2 } from "lucide-react";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -24,20 +23,32 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     const form = e.currentTarget;
+    const name = (form.elements.namedItem("name") as HTMLInputElement).value;
     const email = (form.elements.namedItem("email") as HTMLInputElement).value;
     const password = (form.elements.namedItem("password") as HTMLInputElement).value;
+    const confirm = (form.elements.namedItem("confirm") as HTMLInputElement).value;
+
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
     startTransition(async () => {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
       });
-      if (result?.error) {
-        setError("Invalid email or password.");
+
+      if (res.ok) {
+        router.push("/login?registered=1");
       } else {
-        router.push("/inbox");
-        router.refresh();
+        const data = await res.json().catch(() => ({}));
+        setError((data as { error?: string }).error ?? "Registration failed. Please try again.");
       }
     });
   }
@@ -51,14 +62,29 @@ export default function LoginPage() {
               <Mail className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>
-            Sign in to your Email Digest Agent account.
+            Start your AI-powered email digest in seconds.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="name" className="text-sm font-medium">
+                Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                autoComplete="name"
+                placeholder="Your name"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-medium">
                 Email
@@ -83,7 +109,23 @@ export default function LoginPage() {
                 name="password"
                 type="password"
                 required
-                autoComplete="current-password"
+                minLength={8}
+                autoComplete="new-password"
+                placeholder="Min. 8 characters"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="confirm" className="text-sm font-medium">
+                Confirm password
+              </label>
+              <input
+                id="confirm"
+                name="confirm"
+                type="password"
+                required
+                autoComplete="new-password"
                 placeholder="••••••••"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
@@ -95,9 +137,9 @@ export default function LoginPage() {
 
             <Button type="submit" className="w-full h-11" disabled={isPending}>
               {isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Signing in…</>
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating account…</>
               ) : (
-                "Sign in"
+                "Create account"
               )}
             </Button>
           </form>
@@ -105,9 +147,9 @@ export default function LoginPage() {
 
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-primary hover:underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Sign in
             </Link>
           </p>
         </CardFooter>

@@ -1,19 +1,29 @@
 # Email Digest Agent
 
-An AI-powered email assistant that reads your Gmail, classifies emails, extracts action items, and presents a daily digest with a Human-in-the-Loop (HITL) confirmation queue.
+An AI-powered email assistant that receives forwarded emails, classifies them, extracts action items, and presents a digest with a Human-in-the-Loop (HITL) confirmation queue.
 
-Built with **Next.js 16**, **Qwen Cloud AI**, **PostgreSQL + pgvector**, and **Google OAuth**.
+Built with **Next.js 16**, **Qwen Cloud AI**, **PostgreSQL + pgvector**, and **Cloudflare Email Routing**.
+
+---
+
+## How it works
+
+1. Register an account → get a unique forwarding address (e.g. `abc12345@emailagent.top`)
+2. Add that address to the auto-forward settings in your email app (Gmail, Outlook, etc.)
+3. Every email forwarded there is classified, summarised, and embedded by Qwen AI
+4. Browse your inbox dashboard — approve or reject AI-recommended actions
 
 ---
 
 ## Features
 
-- **Gmail integration** — reads unread emails via Google OAuth
+- **Email forwarding inbox** — receive emails via auto-forward, no OAuth required
 - **AI classification** — categorises each email (newsletter / alert / personal / promotion / other) using `qwen3.6-flash`
 - **AI summarisation** — generates a 2-sentence summary and extracts action items using `qwen3.7-plus`
-- **Semantic search index** — embeds each email with `text-embedding-v4` and stores it in pgvector
-- **Daily digest dashboard** — browse processed emails grouped by category
-- **HITL action queue** — approve or reject AI-recommended actions (archive / draft reply) before execution
+- **Semantic search index** — embeds each email with `text-embedding-v4` and stores in pgvector
+- **Inbox dashboard** — browse emails grouped by category with summaries and todos
+- **HITL action queue** — approve or reject AI-recommended actions before execution
+- **User-defined rules** — write plain-language rules evaluated by `qwen3.7-max`
 
 ---
 
@@ -22,8 +32,8 @@ Built with **Next.js 16**, **Qwen Cloud AI**, **PostgreSQL + pgvector**, and **G
 | Tool | Version | Notes |
 |---|---|---|
 | Node.js | 20.9+ | Required by Next.js 16 |
-| npm | 10+ | Comes with Node 20 |
-| Docker Desktop | any | Runs local PostgreSQL |
+| pnpm | 9+ | `npm install -g pnpm` |
+| Docker Desktop | any | Runs local PostgreSQL + pgvector |
 | Git | any | |
 
 ---
@@ -35,24 +45,20 @@ Built with **Next.js 16**, **Qwen Cloud AI**, **PostgreSQL + pgvector**, and **G
 ```bash
 git clone <your-repo-url>
 cd EmailAgent
-npm install
+pnpm install
 ```
 
 ### 2. Configure environment variables
-
-Copy the example file and fill in each value:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-Open `.env.local` and set:
+Open `.env.local` and fill in:
 
 ```env
 # ─── NextAuth.js v5 ───────────────────────────────────────────────────────────
 AUTH_SECRET=          # generate with: npx auth secret
-AUTH_GOOGLE_ID=       # from Google Cloud Console (see step 3)
-AUTH_GOOGLE_SECRET=   # from Google Cloud Console (see step 3)
 
 # ─── Local PostgreSQL (Docker) ────────────────────────────────────────────────
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/email_agent
@@ -60,6 +66,15 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/email_agent
 # ─── Qwen Cloud ───────────────────────────────────────────────────────────────
 QWEN_API_KEY=         # sk-... from https://home.qwencloud.com/api-keys
 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+
+# ─── Email forwarding ─────────────────────────────────────────────────────────
+INBOUND_DOMAIN=emailagent.top   # domain used to generate per-user forwarding addresses
+CF_INBOUND_SECRET=              # any random string — must match the Cloudflare Worker secret
+
+# ─── Web Push (optional — skip for basic local testing) ───────────────────────
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:you@example.com
 ```
 
 Generate `AUTH_SECRET`:
@@ -68,20 +83,13 @@ Generate `AUTH_SECRET`:
 npx auth secret
 ```
 
-### 3. Set up Google OAuth
+Generate a random `CF_INBOUND_SECRET` (any strong string, e.g. output of):
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services → Credentials**
-2. Click **Create Credentials → OAuth 2.0 Client ID**
-   - Application type: **Web application**
-   - Authorised redirect URI: `http://localhost:3000/api/auth/callback/google`
-3. Copy **Client ID** → `AUTH_GOOGLE_ID`
-4. Copy **Client Secret** → `AUTH_GOOGLE_SECRET`
-5. Go to **APIs & Services → OAuth consent screen → Data access → Add or remove scopes** and add:
-   - `https://mail.google.com/` (Gmail full access)
-   - `https://www.googleapis.com/auth/calendar` (Calendar)
-6. Under **Test users**, add your Google account
+```bash
+node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
+```
 
-### 4. Get a Qwen Cloud API key
+### 3. Get a Qwen Cloud API key
 
 1. Sign up at [home.qwencloud.com](https://home.qwencloud.com)
 2. Go to **API Keys → Create API key**
@@ -89,13 +97,13 @@ npx auth secret
 
 New accounts receive a free quota — no billing required to test.
 
-### 5. Start the database
+### 4. Start the database
 
 ```bash
 docker compose up -d
 ```
 
-This starts a PostgreSQL 16 + pgvector container and automatically applies the schema from `scripts/db/schema.sql`.
+This starts PostgreSQL 16 + pgvector and automatically applies the schema from `scripts/db/schema.sql`.
 
 Verify all tables were created:
 
@@ -103,64 +111,90 @@ Verify all tables were created:
 docker exec email-agent-postgres psql -U postgres -d email_agent -c "\dt"
 ```
 
-Expected output: `accounts`, `digest_exports`, `email_records`, `sessions`, `user_rules`, `users`, `verification_tokens`
+Expected tables: `digest_exports`, `email_records`, `sender_whitelist`, `sessions`, `user_rules`, `users`, `verification_tokens`
 
-### 6. Start the dev server
+### 5. Start the dev server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### 6. Register and get your forwarding address
+
+1. Go to [http://localhost:3000/register](http://localhost:3000/register)
+2. Create an account with email + password
+3. Go to **Settings** — your unique forwarding address is shown (e.g. `abc12345@emailagent.top`)
+
+> **Note:** For local testing you can simulate an inbound email without Cloudflare setup — see [Testing inbound emails locally](#testing-inbound-emails-locally) below.
+
 ---
 
-## Usage
+## Testing inbound emails locally
 
-1. **Sign in** with your Google account — you'll be redirected to the dashboard
-2. Click **Trigger Digest** — this will:
-   - Fetch your 20 most recent unread Gmail messages
-   - Classify each with `qwen3.6-flash`
-   - Summarise + extract todos with `qwen3.7-plus`
-   - Generate embeddings with `text-embedding-v4` and store them in pgvector
-3. Browse the **Digest** tab — emails grouped by category with summaries and action items
-4. Check the **Action Queue** tab — emails the AI flagged for archive or draft reply
-5. Click **Approve** to execute the action or **Reject** to dismiss it
+You can POST a raw email directly to the `/api/inbound` endpoint to test the full AI pipeline without Cloudflare:
+
+```bash
+# Replace values with your own
+curl -X POST http://localhost:3000/api/inbound \
+  -H "Content-Type: message/rfc822" \
+  -H "X-CF-Secret: <your CF_INBOUND_SECRET>" \
+  -H "X-Recipient: <your forwarding address e.g. abc12345@emailagent.top>" \
+  --data-binary @- <<'EOF'
+From: sender@example.com
+To: abc12345@emailagent.top
+Subject: Test email
+Date: Sat, 28 Jun 2026 12:00:00 +0000
+Message-ID: <test-001@example.com>
+
+Hello! This is a test email for the AI digest agent.
+Please classify, summarise, and extract any action items.
+EOF
+```
+
+A successful response looks like `{"ok":true,"processed":1}` and the email will appear in your inbox dashboard.
 
 ---
 
 ## Project Structure
 
 ```
-src/
-├── app/
-│   ├── api/
-│   │   ├── auth/[...nextauth]/   # NextAuth.js route handler
-│   │   └── process-emails/       # POST: fetch + classify + embed + save
-│   ├── dashboard/                # Main digest UI
-│   └── login/                    # Google sign-in page
-├── components/
-│   ├── digest/                   # EmailCard, DigestSection
-│   ├── hitl/                     # ActionItem, ActionQueue
-│   └── dashboard/                # TriggerButton
-├── lib/
-│   ├── ai/
-│   │   ├── qwen.ts               # Qwen Cloud clients (flash / plus / max / embed)
-│   │   └── processor.ts          # processEmailsBatched(), saveDailyDigest()
-│   ├── mcp/
-│   │   ├── gmail.ts              # fetchUnreadEmails, archiveEmail, createDraft
-│   │   └── calendar.ts           # fetchUpcomingEvents, createEvent (stubs)
-│   ├── actions/
-│   │   └── email-actions.ts      # Server actions: approveAction, rejectAction
-│   ├── auth.ts                   # NextAuth config (Google + pg adapter)
-│   ├── db.ts                     # pg.Pool singleton
-│   └── tokens.ts                 # getGoogleAccessToken() with auto-refresh
-├── types/
-│   ├── email.ts                  # Email, ProcessedEmail types
-│   └── db.ts                     # EmailRecord DB row type
+cloudflare/
+├── email-worker.ts     # Cloudflare Email Worker — receives inbound emails, POSTs to /api/inbound
+└── wrangler.toml       # Worker config (INBOUND_URL, secrets)
+
 scripts/
 └── db/
-    └── schema.sql                # Full PostgreSQL schema (auto-applied by Docker)
+    └── schema.sql      # Full PostgreSQL schema (auto-applied by Docker init)
+
+src/
+├── app/
+│   ├── register/       # Sign-up page (email + password)
+│   ├── login/          # Sign-in page
+│   ├── inbox/          # Main email dashboard
+│   ├── settings/       # Forwarding address + AI rules
+│   └── api/
+│       ├── auth/       # NextAuth.js route handler + /register endpoint
+│       └── inbound/    # POST: receive forwarded email → AI pipeline
+├── components/
+│   ├── inbox/          # InboxLayout, InboxSidebar, EmailList, EmailDetail
+│   └── settings/       # ForwardingInfo, RulesEditor
+├── lib/
+│   ├── ai/
+│   │   ├── qwen.ts     # Qwen Cloud clients (flash / plus / max / embed)
+│   │   └── processor.ts# processEmailsBatched() — classify + summarise + embed
+│   ├── email/
+│   │   ├── parser.ts   # Parse raw MIME email → Email object
+│   │   └── forwarding-address.ts  # Generate/lookup per-user @emailagent.top addresses
+│   ├── actions/
+│   │   └── email-actions.ts  # Server actions: approveAction, rejectAction
+│   ├── db.ts           # pg.Pool singleton
+│   └── push/
+│       └── notify.ts   # Web Push notifications (optional)
+└── types/
+    ├── email.ts        # Email, ProcessedEmail types
+    └── db.ts           # EmailRecord, CalendarEvent DB row types
 ```
 
 ---
@@ -170,33 +204,49 @@ scripts/
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 16, React 19, TypeScript 5 |
-| Auth | NextAuth.js v5 + Google OAuth + `@auth/pg-adapter` |
-| Database | PostgreSQL 16 + pgvector (Docker locally, PolarDB in production) |
+| Auth | NextAuth.js v5 — Credentials provider (email/password) + JWT sessions |
+| Database | PostgreSQL 16 + pgvector (Docker locally, Alibaba Cloud PolarDB in production) |
+| Email ingestion | Cloudflare Email Routing → Cloudflare Worker → `/api/inbound` |
 | AI — Classification | Qwen Cloud `qwen3.6-flash` |
 | AI — Summarisation | Qwen Cloud `qwen3.7-plus` |
-| AI — Reasoning | Qwen Cloud `qwen3.7-max` |
+| AI — Rules engine | Qwen Cloud `qwen3.7-max` |
 | AI — Embeddings | Qwen Cloud `text-embedding-v4` (1024-dim) |
 | UI | Tailwind CSS 4, shadcn/ui, Lucide Icons |
+| Hosting (prod) | Alibaba Cloud Function Compute 3.0 (Docker container) |
+
+---
+
+## Resetting the local database
+
+If you need to wipe and re-apply the schema (e.g. after schema changes):
+
+```bash
+docker compose down -v   # removes the volume — all data is lost
+docker compose up -d     # recreates with fresh schema
+```
 
 ---
 
 ## Troubleshooting
 
-**`AUTH_SECRET` missing error on startup**
-Run `npx auth secret` and paste the output into `.env.local` as `AUTH_SECRET=<value>`.
+**`AUTH_SECRET` missing on startup**
+Run `npx auth secret` and set the result as `AUTH_SECRET` in `.env.local`.
 
-**`expected 1024 dimensions, not X` pgvector error**
-The embedding column must be `vector(1024)`. Run:
+**`/api/inbound` returns 401**
+The `X-CF-Secret` header value doesn't match `CF_INBOUND_SECRET` in `.env.local`. Make sure both are identical and the dev server was restarted after changing `.env.local`.
+
+**`/api/inbound` returns 404**
+The `X-Recipient` header doesn't match any `forwarding_address` in the `users` table. Re-register or check the address shown in Settings.
+
+**`expected 1024 dimensions` pgvector error**
+The embedding column dimension mismatch. Reset the DB:
 ```bash
-docker exec email-agent-postgres psql -U postgres -d email_agent \
-  -c "ALTER TABLE email_records ALTER COLUMN embedding TYPE vector(1024);"
+docker compose down -v && docker compose up -d
 ```
 
 **`must contain the word 'json'` error from Qwen**
-All `generateObject` system prompts must include the word "JSON". This is already handled in `processor.ts`.
+All `generateObject` prompts must include the word "JSON". This is already handled in `src/lib/ai/processor.ts`.
 
-**`No object generated: response did not match schema`**
-Qwen returned JSON but with different field names. The system prompts in `processor.ts` include explicit field descriptions to prevent this.
 
 **Gmail returns 401**
 Your access token has expired and refresh failed. Sign out and sign back in to get a fresh token.

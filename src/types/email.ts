@@ -3,26 +3,23 @@
 export type EmailAttachment = {
   filename: string;
   mimeType: string;
-  /** Gmail attachment ID — use to download via Gmail API if needed */
   attachmentId: string;
   size: number;
 };
 
 export type Email = {
-  /** Gmail message ID */
+  /** Message-ID header or generated UUID */
   id: string;
-  threadId: string;
   subject: string;
   from: string;
   to: string;
-  /** RFC 2822 date string from the message header */
+  /** ISO 8601 date string */
   date: string;
-  /** Short plain-text preview provided by Gmail */
+  /** Short plain-text preview (first 200 chars) */
   snippet: string;
-  /** Full plain-text body (decoded from MIME parts) */
+  /** Full plain-text body */
   body: string;
   attachments: EmailAttachment[];
-  labelIds: string[];
 };
 
 // ─── AI processing output ────────────────────────────────────────────────────
@@ -44,6 +41,6 @@ export type ProcessedEmail = {
   /** Extracted action items */
   todos: string[];
   recommendedAction: RecommendedAction;
-  /** User rules triggered (Phase 5) */
+  /** User rules triggered */
   ruleMatches?: string[];
 };

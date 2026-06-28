@@ -5,11 +5,14 @@ create extension if not exists "uuid-ossp";
 
 -- ─── NextAuth.js v5 tables (@auth/pg-adapter) ───────────────────────────────
 create table if not exists users (
-  id            uuid        primary key default uuid_generate_v4(),
-  name          text,
-  email         text        unique,
-  "emailVerified" timestamptz,
-  image         text
+  id                  uuid        primary key default uuid_generate_v4(),
+  name                text,
+  email               text        unique not null,
+  "emailVerified"     timestamptz,
+  image               text,
+  password_hash       text,                    -- bcrypt hash (null for OAuth users)
+  forwarding_address  text        unique,      -- e.g. abc12345@emailagent.top
+  created_at          timestamptz default now()
 );
 
 create table if not exists accounts (
@@ -46,7 +49,7 @@ create table if not exists verification_tokens (
 create table if not exists email_records (
   id                 uuid        primary key default uuid_generate_v4(),
   user_id            uuid        not null references users(id) on delete cascade,
-  gmail_id           text        not null,
+  message_id         text        not null,
   subject            text,
   sender             text,
   received_at        timestamptz,
@@ -55,11 +58,16 @@ create table if not exists email_records (
   todos              jsonb       default '[]',
   recommended_action text        check (recommended_action in ('archive','keep','draft_reply')),
   action_status      text        check (action_status in ('pending','approved','rejected','executed')) default 'pending',
-  raw_snippet        text,
-  embedding          vector(1024),   -- text-embedding-v4 output (1024-dim default)
-  attachment_urls    jsonb       default '[]',  -- Gmail attachment download URLs (no OSS in Phase 1)
+  raw_body           text,                             -- full plain-text body of the forwarded email
+  draft_body         text,                             -- AI-generated draft reply (Phase 5)
+  calendar_events    jsonb       default '[]',          -- AI-extracted calendar events (Phase 5)
+  embedding          vector(1024),                     -- text-embedding-v4 output (1024-dim default)
+  attachment_urls    jsonb       default '[]',          -- attachment metadata from forwarded email
   processed_at       timestamptz default now()
 );
+
+create index if not exists email_records_user_idx    on email_records (user_id);
+create index if not exists email_records_received_idx on email_records (received_at desc);
 
 create index if not exists email_records_embedding_idx
   on email_records using hnsw (embedding vector_cosine_ops);
@@ -79,4 +87,14 @@ create table if not exists user_rules (
   user_id    uuid        not null references users(id) on delete cascade,
   rule_text  text        not null,
   created_at timestamptz default now()
+);
+
+-- Authorized senders who can forward to each user's address
+create table if not exists sender_whitelist (
+  id             uuid        primary key default uuid_generate_v4(),
+  user_id        uuid        not null references users(id) on delete cascade,
+  sender_email   text        not null,   -- exact match, e.g. "john@company.com"
+  sender_domain  text,                  -- domain match, e.g. "company.com" (optional)
+  created_at     timestamptz default now(),
+  unique (user_id, sender_email)
 );

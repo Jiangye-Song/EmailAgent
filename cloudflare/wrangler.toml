@@ -1,0 +1,9 @@
+name = "email-agent-worker"
+main = "email-worker.ts"
+compatibility_date = "2024-09-23"
+
+[vars]
+INBOUND_URL = "https://dev.emailagent.top/api/inbound"
+
+# Secrets (set via: wrangler secret put CF_INBOUND_SECRET)
+# CF_INBOUND_SECRET is set as a secret, not a var

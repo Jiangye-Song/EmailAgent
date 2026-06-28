@@ -1,38 +1,57 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import PostgresAdapter from "@auth/pg-adapter";
+import { compare } from "bcryptjs";
 import { pool } from "@/lib/db";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PostgresAdapter(pool),
 
+  session: {
+    // JWT strategy required for credentials provider
+    strategy: "jwt",
+  },
+
   providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      authorization: {
-        params: {
-          // offline access → gets refresh_token on first consent
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-          // Gmail + Calendar scopes on top of the default openid/email/profile
-          scope: [
-            "openid",
-            "email",
-            "profile",
-            "https://mail.google.com/",
-            "https://www.googleapis.com/auth/calendar",
-          ].join(" "),
-        },
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email as string | undefined;
+        const password = credentials?.password as string | undefined;
+        if (!email || !password) return null;
+
+        const { rows } = await pool.query<{
+          id: string;
+          email: string;
+          name: string | null;
+          password_hash: string | null;
+        }>(
+          `SELECT id, email, name, password_hash FROM users WHERE email = $1`,
+          [email],
+        );
+
+        const user = rows[0];
+        if (!user?.password_hash) return null;
+
+        const valid = await compare(password, user.password_hash);
+        if (!valid) return null;
+
+        return { id: user.id, email: user.email, name: user.name };
       },
     }),
   ],
 
   callbacks: {
-    // Expose user.id on the session so server components can read it
-    session({ session, user }) {
-      session.user.id = user.id;
+    // With JWT strategy, expose user.id via token.sub
+    jwt({ token, user }) {
+      if (user) token.sub = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      if (token.sub) session.user.id = token.sub;
       return session;
     },
   },

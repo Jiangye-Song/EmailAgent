@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { ReactNode, useState, useTransition } from "react";
 import {
   Alert,
   Box,
@@ -29,10 +29,75 @@ type Props = {
   forwardingAddress: string;
 };
 
+type FoldableSectionProps = {
+  title: string;
+  titleColor: string;
+  defaultExpanded?: boolean;
+  borderColor?: string;
+  children: ReactNode;
+};
+
+function FoldableSection({
+  title,
+  titleColor,
+  defaultExpanded = true,
+  borderColor,
+  children,
+}: FoldableSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        overflow: "hidden",
+        ...(borderColor
+          ? {
+              borderLeft: "4px solid",
+              borderLeftColor: borderColor,
+            }
+          : {}),
+      }}
+    >
+      <Button
+        fullWidth
+        variant="text"
+        color="inherit"
+        onClick={() => setIsExpanded((value) => !value)}
+        sx={{
+          justifyContent: "flex-start",
+          px: 2,
+          py: 1,
+          borderRadius: 0,
+          color: "text.secondary",
+        }}
+        startIcon={
+          isExpanded ? (
+            <ExpandMoreRoundedIcon fontSize="small" />
+          ) : (
+            <ChevronRightRoundedIcon fontSize="small" />
+          )
+        }
+      >
+        <Typography
+          variant="overline"
+          color={titleColor}
+          sx={{ fontWeight: 700 }}
+        >
+          {title}
+        </Typography>
+      </Button>
+      <Divider />
+      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+        {children}
+      </Collapse>
+    </Paper>
+  );
+}
+
 export function EmailDetail({ record, forwardingAddress }: Props) {
   const [isPending, startTransition] = useTransition();
   const [localStatus, setLocalStatus] = useState<string | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
 
   if (!record) {
     return (
@@ -53,7 +118,13 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             Forward your Gmail to{" "}
             <Box
               component="span"
-              sx={{ px: 0.8, py: 0.3, borderRadius: 1, bgcolor: "grey.200", color: "text.primary" }}
+              sx={{
+                px: 0.8,
+                py: 0.3,
+                borderRadius: 1,
+                bgcolor: "grey.200",
+                color: "text.primary",
+              }}
             >
               {forwardingAddress}
             </Box>
@@ -93,13 +164,23 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
 
   return (
     <Stack sx={{ height: "100%", minWidth: 0 }}>
-      <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+      <Box
+        sx={{
+          px: { xs: 2, md: 3 },
+          py: 2,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        }}
+      >
         <Typography variant="h6" sx={{ mb: 0.75 }}>
           {rec.subject}
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Typography variant="body2" color="text.secondary">
-            <Box component="span" sx={{ color: "text.primary", fontWeight: 600 }}>
+            <Box
+              component="span"
+              sx={{ color: "text.primary", fontWeight: 600 }}
+            >
               From:
             </Box>{" "}
             {rec.sender}
@@ -109,7 +190,11 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
               {new Date(rec.received_at).toLocaleString()}
             </Typography>
           )}
-          <Chip label={rec.category} size="small" sx={{ textTransform: "capitalize" }} />
+          <Chip
+            label={rec.category}
+            size="small"
+            sx={{ textTransform: "capitalize" }}
+          />
         </Stack>
       </Box>
 
@@ -153,7 +238,13 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           <Chip
             label={status}
             size="small"
-            color={status === "executed" ? "success" : status === "rejected" ? "error" : "default"}
+            color={
+              status === "executed"
+                ? "success"
+                : status === "rejected"
+                  ? "error"
+                  : "default"
+            }
             sx={{ textTransform: "capitalize" }}
           />
         )}
@@ -180,29 +271,102 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             Add to Cal
           </Button>
         )}
-
       </Stack>
 
       <Box sx={{ overflowY: "auto", p: { xs: 2, md: 3 } }}>
         <Stack spacing={2}>
-          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
-            <Typography variant="overline" color="primary.main" sx={{ fontWeight: 700 }}>
-              Summary
-            </Typography>
-            <Typography variant="body2">{rec.summary}</Typography>
-          </Paper>
+          <FoldableSection
+            title="Summary"
+            titleColor="primary.main"
+            borderColor="primary.main"
+          >
+            <Box sx={{ p: 2 }}>
+              <Typography variant="body2">{rec.summary}</Typography>
+            </Box>
+          </FoldableSection>
 
           {rec.todos?.length > 0 && (
-            <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "warning.main" }}>
-              <Typography variant="overline" color="warning.main" sx={{ fontWeight: 700 }}>
-                Action Items
+            <FoldableSection
+              title="Action Items"
+              titleColor="warning.main"
+              borderColor="warning.main"
+            >
+              <Box sx={{ p: 2 }}>
+                <List dense disablePadding>
+                  {rec.todos.map((todo, i) => (
+                    <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
+                      <ListItemText
+                        primary={`• ${todo}`}
+                        slotProps={{ primary: { variant: "body2" } }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </FoldableSection>
+          )}
+
+          {rec.draft_body && (
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderLeft: "4px solid",
+                borderLeftColor: "info.main",
+              }}
+            >
+              <Box sx={{ p: 2 }}>
+                <Typography
+                  variant="overline"
+                  color="info.main"
+                  sx={{ fontWeight: 700 }}
+                >
+                  Draft Reply
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ whiteSpace: "pre-wrap" }}
+                >
+                  {rec.draft_body}
+                </Typography>
+              </Box>
+            </Paper>
+          )}
+
+          {hasCalendar && (
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderLeft: "4px solid",
+                borderLeftColor: "success.main",
+              }}
+            >
+              <Typography
+                variant="overline"
+                color="success.main"
+                sx={{ fontWeight: 700 }}
+              >
+                Calendar Events
               </Typography>
               <List dense disablePadding>
-                {rec.todos.map((todo, i) => (
+                {rec.calendar_events?.map((evt, i) => (
                   <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
                     <ListItemText
-                      primary={`• ${todo}`}
-                      slotProps={{ primary: { variant: "body2" } }}
+                      primary={evt.title}
+                      slotProps={{
+                        primary: { variant: "body2", sx: { fontWeight: 600 } },
+                        secondary: { variant: "caption" },
+                      }}
+                      secondary={
+                        <>
+                          {new Date(evt.start).toLocaleString()}
+                          {evt.end
+                            ? ` → ${new Date(evt.end).toLocaleString()}`
+                            : ""}
+                        </>
+                      }
                     />
                   </ListItem>
                 ))}
@@ -210,70 +374,13 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             </Paper>
           )}
 
-        {rec.draft_body && (
-          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "info.main" }}>
-            <Typography variant="overline" color="info.main" sx={{ fontWeight: 700 }}>
-              Draft Reply
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
-              {rec.draft_body}
-            </Typography>
-          </Paper>
-        )}
-
-        {hasCalendar && (
-          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "success.main" }}>
-            <Typography variant="overline" color="success.main" sx={{ fontWeight: 700 }}>
-              Calendar Events
-            </Typography>
-            <List dense disablePadding>
-              {rec.calendar_events?.map((evt, i) => (
-                <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
-                  <ListItemText
-                    primary={evt.title}
-                    slotProps={{
-                      primary: { variant: "body2", sx: { fontWeight: 600 } },
-                      secondary: { variant: "caption" },
-                    }}
-                    secondary={
-                      <>
-                    {new Date(evt.start).toLocaleString()}
-                    {evt.end ? ` → ${new Date(evt.end).toLocaleString()}` : ""}
-                      </>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Paper>
-        )}
-
-        {rec.raw_body && (
-          <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-            <Button
-              fullWidth
-              variant="text"
-              color="inherit"
-              onClick={() => setShowOriginal((v) => !v)}
-              sx={{
-                justifyContent: "flex-start",
-                px: 2,
-                py: 1,
-                borderRadius: 0,
-                color: "text.secondary",
-              }}
-              startIcon={
-                showOriginal ? (
-                    <ExpandMoreRoundedIcon fontSize="small" />
-                ) : (
-                    <ChevronRightRoundedIcon fontSize="small" />
-                )
-              }
+          {rec.raw_body && (
+            <FoldableSection
+              title="Original Email"
+              titleColor="text.secondary"
+              defaultExpanded={false}
+              borderColor="grey.400"
             >
-              Original Email
-            </Button>
-            <Divider />
-            <Collapse in={showOriginal} timeout="auto" unmountOnExit>
               <Box sx={{ p: 2, bgcolor: "grey.50" }}>
                 <Typography
                   component="pre"
@@ -289,11 +396,12 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
                   {rec.raw_body}
                 </Typography>
               </Box>
-            </Collapse>
-          </Paper>
-        )}
+            </FoldableSection>
+          )}
 
-          {isPending && <Alert severity="info">Updating action status...</Alert>}
+          {isPending && (
+            <Alert severity="info">Updating action status...</Alert>
+          )}
         </Stack>
       </Box>
     </Stack>

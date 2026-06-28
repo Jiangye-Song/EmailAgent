@@ -12,9 +12,15 @@ function validateSecret(incoming: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  // ── Debug ─────────────────────────────────────────────────────────────────
+  const incoming = req.headers.get("x-cf-secret") ?? "(none)";
+  const expected = process.env.CF_INBOUND_SECRET ?? "(not set)";
+  console.log(`[inbound] POST reached — secret header: "${incoming.slice(0, 6)}…" expected length: ${expected.length}`);
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   const secret = req.headers.get("x-cf-secret") ?? "";
   if (!validateSecret(secret)) {
+    console.log(`[inbound] 401 — secret mismatch (incoming.length=${secret.length}, expected.length=${expected.length})`);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

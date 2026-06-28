@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, X, Reply, CalendarPlus } from "lucide-react";
+import { Check, X, Reply, CalendarPlus, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { approveAction, rejectAction } from "@/lib/actions/email-actions";
@@ -15,6 +15,7 @@ type Props = {
 export function EmailDetail({ record, forwardingAddress }: Props) {
   const [isPending, startTransition] = useTransition();
   const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
 
   if (!record) {
     return (
@@ -185,6 +186,29 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+        {/* Original email body */}
+        {rec.raw_body && (
+          <div className="border rounded-md overflow-hidden">
+            <button
+              className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/50 transition-colors"
+              onClick={() => setShowOriginal((v) => !v)}
+            >
+              {showOriginal ? (
+                <ChevronDown className="h-3 w-3 shrink-0" />
+              ) : (
+                <ChevronRight className="h-3 w-3 shrink-0" />
+              )}
+              Original Email
+            </button>
+            {showOriginal && (
+              <div className="border-t px-3 py-3 bg-muted/20">
+                <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground leading-relaxed">
+                  {rec.raw_body}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -135,7 +135,7 @@ async function processOneEmail(
       processed.summary,
       JSON.stringify(processed.todos),
       processed.recommendedAction,
-      email.snippet,
+      email.body,
       vectorLiteral,
       JSON.stringify(
         email.attachments.map((a) => ({

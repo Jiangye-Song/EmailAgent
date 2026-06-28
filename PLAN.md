@@ -110,25 +110,25 @@ graph TB
 
 ### P0 — Must Have
 
-- [ ] **Email/Password Registration** — Sign up with email + password (hashed in PolarDB)
-- [ ] **Email/Password Sign In** — Login via NextAuth.js credentials provider
-- [ ] **Forwarding Email Address** — Each user gets a unique address like `user_<id>@emailagent.top`
-- [ ] **Inbound Email Webhook** — Cloudflare Email Router → `/api/inbound` receives forwarded emails
-- [ ] **User Authorization Check** — Verify sender is registered (by email address or domain whitelist)
-- [ ] **Email Classification** — Categorize via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / Other)
-- [ ] **Email Summarization** — Generate 2-sentence summary + action items via `qwen3.7-plus`
-- [ ] **Semantic Search Index** — Embed with `text-embedding-v4`, store in PolarDB pgvector
-- [ ] **Inbox Dashboard** — Browse processed emails grouped by category + sender
-- [ ] **HITL Confirmation Queue** — Approve / Reject AI-recommended actions before execution
+- [x] **Email/Password Registration** — Sign up with email + password (hashed in PolarDB)
+- [x] **Email/Password Sign In** — Login via NextAuth.js credentials provider
+- [x] **Forwarding Email Address** — Each user gets a unique address like `user_<id>@emailagent.top`
+- [x] **Inbound Email Webhook** — Cloudflare Email Router → `/api/inbound` receives forwarded emails
+- [ ] **User Authorization Check** — Verify sender is registered (by email address or domain whitelist) _(table exists, enforcement not yet wired in `/api/inbound`)_
+- [x] **Email Classification** — Categorize via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / Other)
+- [x] **Email Summarization** — Generate 2-sentence summary + action items via `qwen3.7-plus`
+- [x] **Semantic Search Index** — Embed with `text-embedding-v4`, store in PolarDB pgvector
+- [x] **Inbox Dashboard** — Browse processed emails grouped by category + sender
+- [x] **HITL Confirmation Queue** — Approve / Reject AI-recommended actions before execution
 
 ### P1 — Bonus
 
-- [ ] **User-Defined Rules Engine** — `qwen3.7-max` evaluates rules against each email
+- [x] **User-Defined Rules Engine** — `qwen3.7-max` evaluates rules against each email
   - "Always keep emails from {domain}"
   - "Archive promotional emails automatically"
   - "Flag emails related to {keywords}"
 - [ ] **Auto-Label / Archive** — Execute approved actions via Gmail API (if user connects Gmail separately)
-- [ ] **Auto-generate Reply Drafts** — `qwen3.7-plus` suggests responses
+- [ ] **Auto-generate Reply Drafts** — `qwen3.7-plus` suggests responses _(`draft_body` column + UI exist; generation not yet implemented in processor)_
 - [ ] **Semantic Email Search** — Full-text + vector search across archived emails
 - [ ] **OSS Export** — Move digest JSON from `digest_exports` table → Alibaba Cloud OSS
 
@@ -270,30 +270,30 @@ create table sender_whitelist (
   - [ ] Create Email Routing rule: `*@emailagent.top` → forwards to a catch-all address
   - [ ] Set up webhook to send inbound emails as POST to `/api/inbound`
   
-- [ ] `cloudflare/email-worker.ts` — Cloudflare Worker (deployed separately):
-  - [ ] Receives raw MIME email from Cloudflare Email Routing
-  - [ ] Forwards as HTTP POST to `https://emailagent.top/api/inbound` with raw email body
-  - [ ] Includes signature verification (HMAC-SHA256 using CF_INBOUND_SECRET)
+- [x] `cloudflare/email-worker.ts` — Cloudflare Worker (deployed separately):
+  - [x] Receives raw MIME email from Cloudflare Email Routing
+  - [x] Forwards as HTTP POST to `https://emailagent.top/api/inbound` with raw email body
+  - [x] Includes signature verification (HMAC-SHA256 using CF_INBOUND_SECRET)
 
-- [ ] `src/lib/email/parser.ts` — Parse raw MIME email:
-  - [ ] Use `mailparser` library to convert MIME buffer → `{ subject, from, to, text, html, attachments }`
-  - [ ] Extract attachments (store URLs only in Phase 1)
+- [x] `src/lib/email/parser.ts` — Parse raw MIME email:
+  - [x] Use `mailparser` library to convert MIME buffer → `{ subject, from, to, text, html, attachments }`
+  - [x] Extract attachments (store URLs only in Phase 1)
 
-- [ ] `src/app/api/inbound/route.ts` — Webhook receiver:
-  - [ ] Validate CF_INBOUND_SECRET via HMAC
-  - [ ] Parse email via `parseMimeEmail()`
-  - [ ] Look up user by forwarding address (extract `user_abc123@emailagent.top` → find user)
+- [x] `src/app/api/inbound/route.ts` — Webhook receiver:
+  - [x] Validate CF_INBOUND_SECRET via HMAC
+  - [x] Parse email via `parseMimeEmail()`
+  - [x] Look up user by forwarding address (extract `user_abc123@emailagent.top` → find user)
   - [ ] Check sender authorization: is sender in `sender_whitelist` for this user?
     - If NOT: skip processing, log event
     - If YES: proceed
-  - [ ] Store raw email in `email_records` (with user_id, sender, subject, body)
-  - [ ] **Enqueue async job** (or call processor directly):
+  - [x] Store raw email in `email_records` (with user_id, sender, subject, body)
+  - [x] **Enqueue async job** (or call processor directly):
     - Classify, summarize, embed (Phase 3)
     - Save pending action to action queue
-  - [ ] Return `200 OK` immediately to Cloudflare
+  - [x] Return `200 OK` immediately to Cloudflare
 
-- [ ] `src/lib/email/forwarding-address.ts` — Enhanced:
-  - [ ] Add `getUserByForwardingAddress(address)` — fast lookup for `/api/inbound`
+- [x] `src/lib/email/forwarding-address.ts` — Enhanced:
+  - [x] Add `getUserByForwardingAddress(address)` — fast lookup for `/api/inbound`
   - [ ] Add `updateSenderWhitelist(userId, senderEmail)` — auto-trust new senders (or require approval)
 
 **Files to Create:**
@@ -308,16 +308,16 @@ create table sender_whitelist (
 
 **Goal:** Each inbound email is classified, summarized, and indexed concurrently using multiple Qwen models.
 
-- [ ] `src/lib/ai/qwen.ts` — shared Qwen client:
+- [x] `src/lib/ai/qwen.ts` — shared Qwen client:
   - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
-  - Export three clients: `qwenFlash`, `qwenPlus`, `qwenMax`
+  - Export three clients: `qwenFlash`, `qwenPlus`, `qwenMax`, `qwenEmbedding`
 
-- [ ] `src/lib/ai/processor.ts` — Main processing pipeline:
+- [x] `src/lib/ai/processor.ts` — Main processing pipeline:
   - `processEmailBatch(emailRecords, userId, userRules?)` using `Promise.allSettled`
   - Per email pipeline (steps 1–4 run concurrently via `Promise.all`):
     1. **`qwen3.6-flash`** → classify category (Newsletter / Alert / Personal / Promotion / Other)
     2. **`qwen3.7-plus`** → summarize (≤2 sentences) + extract todos + recommended action
-    3. **`text-embedding-v4`** → generate 1536-dim embedding for semantic search
+    3. **`text-embedding-v4`** → generate 1024-dim embedding for semantic search
     4. *(if rules exist)* **`qwen3.7-max`** → evaluate user rules against email body/sender
   - Update `email_records` with `(category, summary, todos, recommended_action, embedding, action_status='pending')`
   - Structured output (Zod schema):
@@ -330,10 +330,11 @@ create table sender_whitelist (
       ruleMatches?: string[];      // matched user rules (if any)
     }
     ```
+  - [ ] Draft reply generation (`draft_body`) — column + UI exist, not yet generated
+  - [ ] Calendar event extraction (`calendar_events`) — column + UI exist, not yet generated
 
-- [ ] **Called from `/api/inbound`** after email is stored with raw body
-  - Don't block Cloudflare webhook response — use async job queue or fire-and-forget
-  - Or keep it synchronous if Alibaba Function Compute timeout is generous (it is — up to 24 hours)
+- [x] **Called from `/api/inbound`** after email is stored with raw body
+  - Synchronous (Alibaba Function Compute timeout is generous)
 
 **Files to Create/Update:**
 - `src/lib/ai/processor.ts` (refactored from v1 to work with inbound emails)
@@ -345,36 +346,38 @@ create table sender_whitelist (
 
 **Goal:** Users see their forwarded emails organized by category with approval/rejection actions.
 
-- [ ] `src/app/inbox/page.tsx` — server component:
+- [x] `src/app/inbox/page.tsx` — server component:
   - Fetch `email_records` for logged-in user, ordered by `received_at DESC`
   - Build category counts (newsletter, alert, personal, promotion, other)
   - Pass to `InboxLayout` client component
 
-- [ ] `src/components/inbox/InboxLayout.tsx` — client wrapper:
+- [x] `src/components/inbox/InboxLayout.tsx` — client wrapper:
   - Owns category filter state (selected category)
   - Renders sidebar + email list + email detail panels
 
-- [ ] `src/components/inbox/InboxSidebar.tsx` — category filter:
+- [x] `src/components/inbox/InboxSidebar.tsx` — category filter:
   - Show counts: "Newsletters (5)", "Alerts (2)", etc.
   - Click to filter email list
 
-- [ ] `src/components/inbox/EmailList.tsx` — scrollable email list:
+- [x] `src/components/inbox/EmailList.tsx` — scrollable email list:
   - Show preview: from, subject, 1-line summary
   - Highlight pending actions (yellow badge)
   - Click to select + show in detail pane
 
-- [ ] `src/components/inbox/EmailDetail.tsx` — reading pane:
+- [x] `src/components/inbox/EmailDetail.tsx` — reading pane:
   - Full sender, subject, body, summary, todos
   - Show category badge
+  - Collapsible original email body (`raw_body`)
+  - Draft reply preview, calendar events, ICS download button
   - If action is `pending`: show **Approve / Reject buttons**
     - Approve: execute recommended action (archive, draft reply)
     - Reject: dismiss action, mark as `rejected`
 
-- [ ] `src/lib/actions/email-actions.ts` — server actions:
-  - `approveAction(emailId)` → update `action_status = 'approved'` → execute (TBD in Phase 5)
+- [x] `src/lib/actions/email-actions.ts` — server actions:
+  - `approveAction(emailId)` → update `action_status = 'approved'`
   - `rejectAction(emailId)` → update `action_status = 'rejected'` → revalidate `/inbox`
 
-- [ ] Add to `proxy.ts`: protect `/inbox` route (redirect to `/login`)
+- [x] Add to `proxy.ts`: protect `/inbox` route (redirect to `/login`)
 
 **Files to Create:**
 - `src/app/inbox/page.tsx`
@@ -390,22 +393,22 @@ create table sender_whitelist (
 
 **Goal:** Users can define natural-language rules and manage sender whitelists.
 
-- [ ] `src/app/settings/page.tsx` — server component:
+- [x] `src/app/settings/page.tsx` — server component:
   - Show user's forwarding email address: `user_abc123@emailagent.top`
   - Instructions: "Add this to auto-forward in your email app"
   - Textarea to enter/edit rules (natural language, e.g., "Archive all newsletters")
   - List of authorized senders (manage whitelist)
 
-- [ ] `src/components/settings/RulesEditor.tsx` — rule management UI:
+- [x] `src/components/settings/RulesEditor.tsx` — rule management UI:
   - Add / edit / delete rules
   - Save rules to `user_rules` table
 
-- [ ] `src/components/settings/ForwardingInfo.tsx` — NEW:
+- [x] `src/components/settings/ForwardingInfo.tsx` — done in Phase 1:
   - Display user's unique forwarding address
   - Copy-to-clipboard button
   - Show instructions for popular email providers (Gmail, Outlook, Apple Mail)
 
-- [ ] `src/components/settings/SenderWhitelist.tsx` — NEW:
+- [ ] `src/components/settings/SenderWhitelist.tsx` — NEW _(not yet implemented)_:
   - List of approved senders
   - Add new sender (email or domain)
   - Remove sender
@@ -415,11 +418,10 @@ create table sender_whitelist (
   - If not in whitelist: reject OR auto-approve first-time senders (configurable)
   - Log all received emails for user review
 
-- [ ] Enhance `processEmailBatch()`:
+- [x] Enhance `processEmailBatch()`:
   - Load user rules from `user_rules` table
   - Pass rules + email body to `qwen3.7-max`
   - Get back `ruleMatches[]` (which rules triggered)
-  - Store in `email_records` for display in UI
 
 - [ ] *(Bonus)* Add "auto-approve" settings:
   - "Auto-archive newsletters"
@@ -444,7 +446,7 @@ create table sender_whitelist (
   - [ ] SSL certificate for `emailagent.top` (free or purchased)
 
 - [ ] **Container Image:**
-  - [ ] Ensure `next.config.ts` has `output: "standalone"`
+  - [x] Ensure `next.config.ts` has `output: "standalone"`
   - [ ] Create `Dockerfile` for Next.js standalone deployment
   - [ ] Build image: `docker build -t email-agent:latest .`
 
@@ -465,9 +467,9 @@ create table sender_whitelist (
   - [ ] Configure HTTP trigger for public access
   - [ ] Set timeout to 60+ seconds for email processing
 
-- [ ] **Cloudflare Worker Deployment:**
-  - [ ] Deploy `cloudflare/email-worker.ts` to Cloudflare Workers
-  - [ ] Update webhook URL to point to FC function `/api/inbound`
+- [x] **Cloudflare Worker Deployment:**
+  - [x] Deploy `cloudflare/email-worker.ts` to Cloudflare Workers
+  - [x] Update webhook URL to point to FC function `/api/inbound`
   - [ ] Test end-to-end email forwarding
 
 - [ ] **Database Migration:**

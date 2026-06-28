@@ -57,9 +57,9 @@ export default async function SettingsPage() {
             <SettingsRoundedIcon color="primary" />
             <Typography variant="h6">Settings</Typography>
           </Stack>
-          <Button component={Link} href="/inbox" startIcon={<ArrowBackRoundedIcon />}>
-            Back to inbox
-          </Button>
+          <Link href="/inbox" style={{ textDecoration: "none" }}>
+            <Button startIcon={<ArrowBackRoundedIcon />}>Back to inbox</Button>
+          </Link>
           <ThemeModeToggle />
         </Toolbar>
       </AppBar>

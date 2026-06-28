@@ -1,15 +1,23 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
+import {
+  Box,
+  Chip,
+  List,
+  ListItem,
+  ListItemButton,
+  Stack,
+  Typography,
+} from "@mui/material";
 import type { EmailRecord } from "@/types/db";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  alert: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  personal: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  newsletter: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  promotion: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  other: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+const CATEGORY_COLORS: Record<string, "error" | "primary" | "secondary" | "warning" | "default"> = {
+  alert: "error",
+  personal: "primary",
+  newsletter: "secondary",
+  promotion: "warning",
+  other: "default",
 };
 
 type Props = {
@@ -21,14 +29,24 @@ type Props = {
 export function EmailList({ records, selectedId, onSelect }: Props) {
   if (records.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4">
-        No emails in this category.
-      </div>
+      <Box
+        sx={{
+          height: "100%",
+          display: "grid",
+          placeItems: "center",
+          px: 2,
+          textAlign: "center",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          No emails in this category.
+        </Typography>
+      </Box>
     );
   }
 
   return (
-    <div className="flex flex-col divide-y overflow-y-auto">
+    <List disablePadding sx={{ overflowY: "auto", height: "100%" }}>
       {records.map((record) => {
         const isSelected = record.id === selectedId;
         const relativeTime = record.received_at
@@ -36,38 +54,41 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
           : "";
 
         return (
-          <button
-            key={record.id}
-            onClick={() => onSelect(record.id)}
-            className={cn(
-              "w-full text-left px-3 py-3 transition-colors border-l-2",
-              isSelected
-                ? "bg-primary/5 border-l-primary"
-                : "border-l-transparent hover:bg-accent",
-            )}
-          >
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="text-xs font-semibold truncate">
-                {record.sender.split("<")[0].trim() || record.sender}
-              </span>
-              <span className="text-[10px] text-muted-foreground shrink-0">
-                {relativeTime}
-              </span>
-            </div>
-            <p className="text-xs truncate text-foreground/80 mb-1">
-              {record.subject}
-            </p>
-            <span
-              className={cn(
-                "text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide",
-                CATEGORY_COLORS[record.category],
-              )}
+          <ListItem key={record.id} disablePadding divider>
+            <ListItemButton
+              selected={isSelected}
+              onClick={() => onSelect(record.id)}
+              sx={{ alignItems: "flex-start", py: 1.5, px: 2 }}
             >
-              {record.category}
-            </span>
-          </button>
+              <Stack spacing={0.6} sx={{ width: "100%", minWidth: 0 }}>
+                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700 }} noWrap>
+                {record.sender.split("<")[0].trim() || record.sender}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                    {relativeTime}
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" noWrap color="text.primary">
+                  {record.subject}
+                </Typography>
+                <Chip
+                  label={record.category}
+                  color={CATEGORY_COLORS[record.category]}
+                  size="small"
+                  sx={{
+                    alignSelf: "flex-start",
+                    height: 20,
+                    fontSize: 11,
+                    textTransform: "capitalize",
+                    fontWeight: 600,
+                  }}
+                />
+              </Stack>
+            </ListItemButton>
+          </ListItem>
         );
       })}
-    </div>
+    </List>
   );
 }

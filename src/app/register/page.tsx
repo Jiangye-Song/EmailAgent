@@ -4,15 +4,19 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  Alert,
+  Box,
+  Button,
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Mail, Loader2 } from "lucide-react";
+  CircularProgress,
+  Container,
+  Link as MuiLink,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -54,106 +58,113 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-3 text-center pb-4">
-          <div className="flex justify-center">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Mail className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>
-            Start your AI-powered email digest in seconds.
-          </CardDescription>
-        </CardHeader>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+        background:
+          "radial-gradient(circle at 80% 15%, #fde68a 0%, transparent 36%), radial-gradient(circle at 5% 80%, #bfdbfe 0%, transparent 36%), linear-gradient(160deg, #eff6ff 0%, #fffbeb 100%)",
+      }}
+    >
+      <Container maxWidth="sm" disableGutters>
+        <Card sx={{ p: { xs: 2, sm: 3 } }}>
+          <CardContent>
+            <Stack spacing={3}>
+              <Stack spacing={1} sx={{ alignItems: "center", textAlign: "center" }}>
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: "secondary.main",
+                    color: "#111827",
+                    boxShadow: "0 10px 24px rgba(251,146,60,0.35)",
+                  }}
+                >
+                  <AutoAwesomeRoundedIcon fontSize="large" />
+                </Box>
+                <Typography variant="h4">Create an account</Typography>
+                <Typography color="text.secondary">
+                  Start your AI-powered email digest in seconds.
+                </Typography>
+              </Stack>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="name" className="text-sm font-medium">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                autoComplete="name"
-                placeholder="Your name"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+              <Box component="form" onSubmit={handleSubmit}>
+                <Stack spacing={2}>
+                  <TextField
+                    id="name"
+                    name="name"
+                    type="text"
+                    label="Name"
+                    required
+                    autoComplete="name"
+                    placeholder="Your name"
+                    fullWidth
+                  />
 
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+                  <TextField
+                    id="email"
+                    name="email"
+                    type="email"
+                    label="Email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    fullWidth
+                  />
 
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                placeholder="Min. 8 characters"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+                  <TextField
+                    id="password"
+                    name="password"
+                    type="password"
+                    label="Password"
+                    required
+                    slotProps={{ htmlInput: { minLength: 8 } }}
+                    autoComplete="new-password"
+                    placeholder="Min. 8 characters"
+                    fullWidth
+                  />
 
-            <div className="space-y-1.5">
-              <label htmlFor="confirm" className="text-sm font-medium">
-                Confirm password
-              </label>
-              <input
-                id="confirm"
-                name="confirm"
-                type="password"
-                required
-                autoComplete="new-password"
-                placeholder="••••••••"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+                  <TextField
+                    id="confirm"
+                    name="confirm"
+                    type="password"
+                    label="Confirm password"
+                    required
+                    autoComplete="new-password"
+                    placeholder="Repeat password"
+                    fullWidth
+                  />
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+                  {error && <Alert severity="error">{error}</Alert>}
 
-            <Button type="submit" className="w-full h-11" disabled={isPending}>
-              {isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating account…</>
-              ) : (
-                "Create account"
-              )}
-            </Button>
-          </form>
-        </CardContent>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={isPending}
+                    fullWidth
+                    startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : null}
+                  >
+                    {isPending ? "Creating account..." : "Create account"}
+                  </Button>
+                </Stack>
+              </Box>
 
-        <CardFooter className="justify-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                Already have an account?{" "}
+                <MuiLink component={Link} href="/login" underline="hover" color="primary.main">
+                  Sign in
+                </MuiLink>
+              </Typography>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

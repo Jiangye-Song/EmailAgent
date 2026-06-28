@@ -1,8 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Mail } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Button,
+  Chip,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 
 type Props = {
   address: string;
@@ -18,70 +31,95 @@ export function ForwardingInfo({ address }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Address display */}
-      <div className="flex items-center gap-2 p-3 bg-muted rounded-lg border">
-        <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="font-mono text-sm flex-1 select-all">{address}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 shrink-0"
-          onClick={copyAddress}
-          aria-label="Copy forwarding address"
+    <Stack spacing={2.5}>
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          flexWrap: "wrap",
+          bgcolor: "background.paper",
+        }}
+      >
+        <MailOutlineRoundedIcon fontSize="small" color="action" />
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: "var(--font-geist-mono), monospace",
+            fontWeight: 600,
+            flex: 1,
+            minWidth: 180,
+          }}
         >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-green-500" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
+          {address}
+        </Typography>
+        <Button
+          variant={copied ? "contained" : "outlined"}
+          color={copied ? "success" : "primary"}
+          size="small"
+          onClick={copyAddress}
+          startIcon={copied ? <CheckRoundedIcon fontSize="small" /> : <ContentCopyRoundedIcon fontSize="small" />}
+        >
+          {copied ? "Copied" : "Copy"}
         </Button>
-      </div>
+      </Paper>
 
-      {/* Setup instructions */}
-      <div className="space-y-3 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">
-          How to set up auto-forwarding:
-        </p>
+      <Alert severity="info" variant="outlined">
+        Add this forwarding address in your email provider. Confirmation emails sent to this address will appear in your inbox.
+      </Alert>
 
-        <details className="group">
-          <summary className="cursor-pointer list-none flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors">
-            <span className="text-xs">▶</span> Gmail
-          </summary>
-          <ol className="mt-2 ml-4 space-y-1 list-decimal list-inside">
-            <li>Open Gmail → Settings (⚙) → <strong>See all settings</strong></li>
-            <li>Go to <strong>Forwarding and POP/IMAP</strong> tab</li>
-            <li>Click <strong>Add a forwarding address</strong></li>
-            <li>Enter <code className="bg-muted px-1 rounded text-xs">{address}</code></li>
-            <li>Gmail will send a verification email — confirm it here in your inbox</li>
-            <li>Select <strong>Forward a copy of incoming mail</strong></li>
-          </ol>
-        </details>
+      <Stack spacing={1.2}>
+        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>
+          Setup Guide
+        </Typography>
 
-        <details className="group">
-          <summary className="cursor-pointer list-none flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors">
-            <span className="text-xs">▶</span> Outlook / Hotmail
-          </summary>
-          <ol className="mt-2 ml-4 space-y-1 list-decimal list-inside">
-            <li>Open Outlook → Settings (⚙) → <strong>View all Outlook settings</strong></li>
-            <li>Go to <strong>Mail → Forwarding</strong></li>
-            <li>Enable forwarding and enter <code className="bg-muted px-1 rounded text-xs">{address}</code></li>
-            <li>Click <strong>Save</strong></li>
-          </ol>
-        </details>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <Typography sx={{ fontWeight: 600 }}>Gmail</Typography>
+              <Chip size="small" color="primary" label="Recommended" />
+            </Stack>
+          </AccordionSummary>
+          <AccordionDetails>
+            <ol>
+              <li>Open Gmail Settings and choose See all settings.</li>
+              <li>Go to Forwarding and POP/IMAP and click Add a forwarding address.</li>
+              <li>Paste this address: <strong>{address}</strong>.</li>
+              <li>Confirm the verification email in this app inbox.</li>
+              <li>Enable Forward a copy of incoming mail.</li>
+            </ol>
+          </AccordionDetails>
+        </Accordion>
 
-        <details className="group">
-          <summary className="cursor-pointer list-none flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors">
-            <span className="text-xs">▶</span> Apple Mail (iCloud)
-          </summary>
-          <ol className="mt-2 ml-4 space-y-1 list-decimal list-inside">
-            <li>Go to <strong>iCloud.com → Mail → Settings (⚙)</strong></li>
-            <li>Click <strong>Rules → Add a rule</strong></li>
-            <li>Set condition: <em>Every message</em></li>
-            <li>Set action: <em>Forward to</em> → enter <code className="bg-muted px-1 rounded text-xs">{address}</code></li>
-          </ol>
-        </details>
-      </div>
-    </div>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+            <Typography sx={{ fontWeight: 600 }}>Outlook / Hotmail</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <ol>
+              <li>Open Outlook Settings and choose View all Outlook settings.</li>
+              <li>Go to Mail and then Forwarding.</li>
+              <li>Enable forwarding and enter <strong>{address}</strong>.</li>
+              <li>Save changes.</li>
+            </ol>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+            <Typography sx={{ fontWeight: 600 }}>Apple Mail (iCloud)</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <ol>
+              <li>Go to iCloud Mail settings.</li>
+              <li>Create a new rule for every message.</li>
+              <li>Set action to Forward to and use <strong>{address}</strong>.</li>
+            </ol>
+          </AccordionDetails>
+        </Accordion>
+      </Stack>
+    </Stack>
   );
 }

@@ -4,9 +4,21 @@ import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
-import { Separator } from "@/components/ui/separator";
-import { Settings, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import {
+  AppBar,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Container,
+  Divider,
+  Stack,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 
 async function getUserRules(userId: string): Promise<string[]> {
   const { rows } = await pool.query<{ rule_text: string }>(
@@ -26,56 +38,67 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-white/80 dark:bg-zinc-900/80 backdrop-blur px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-sm">Settings</span>
-          </div>
-          <Link
-            href="/inbox"
-            className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md hover:bg-accent transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(145deg, rgba(255,247,237,0.7) 0%, rgba(239,246,255,0.6) 100%)",
+      }}
+    >
+      <AppBar
+        position="sticky"
+        color="transparent"
+        elevation={0}
+        sx={{ borderBottom: "1px solid", borderColor: "divider", backdropFilter: "blur(8px)" }}
+      >
+        <Toolbar>
+          <Stack direction="row" spacing={1.2} sx={{ alignItems: "center", flexGrow: 1 }}>
+            <SettingsRoundedIcon color="primary" />
+            <Typography variant="h6">Settings</Typography>
+          </Stack>
+          <Button component={Link} href="/inbox" startIcon={<ArrowBackRoundedIcon />}>
             Back to inbox
-          </Link>
-        </div>
-      </header>
+          </Button>
+        </Toolbar>
+      </AppBar>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-        {/* Forwarding address section */}
-        <section className="space-y-4">
-          <div>
-            <h1 className="text-xl font-bold">Your forwarding address</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add this address to the auto-forward rules in your email app. Every
-              email forwarded here will be processed by the AI and appear in your
-              inbox.
-            </p>
-          </div>
-          <Separator />
-          <ForwardingInfo address={forwardingAddress} />
-        </section>
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Stack spacing={3}>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" sx={{ mb: 0.5 }}>
+                    Your forwarding address
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Add this address to auto-forward rules in your email app. Every forwarded message is processed by AI and appears in your inbox.
+                  </Typography>
+                </Box>
+                <Divider />
+                <ForwardingInfo address={forwardingAddress} />
+              </Stack>
+            </CardContent>
+          </Card>
 
-        {/* Rules section */}
-        <section className="space-y-4">
-          <div>
-            <h1 className="text-xl font-bold">AI rules</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Write plain-language rules to guide how your emails are classified
-              and acted on. Rules are applied by{" "}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                qwen3.7-max
-              </code>{" "}
-              during processing.
-            </p>
-          </div>
-          <Separator />
-          <RulesEditor initialRules={rules} />
-        </section>
-      </main>
-    </div>
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" sx={{ mb: 0.5 }}>
+                    AI rules
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Write plain-language rules to guide classification and actions. Rules are applied during processing.
+                  </Typography>
+                </Box>
+                <Divider />
+                <RulesEditor initialRules={rules} />
+              </Stack>
+            </CardContent>
+          </Card>
+        </Stack>
+      </Container>
+    </Box>
   );
 }

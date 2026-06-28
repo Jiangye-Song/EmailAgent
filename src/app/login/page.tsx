@@ -5,15 +5,19 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  Alert,
+  Box,
+  Button,
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Mail, Loader2 } from "lucide-react";
+  CircularProgress,
+  Container,
+  Link as MuiLink,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,75 +47,90 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-3 text-center pb-4">
-          <div className="flex justify-center">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Mail className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-          <CardDescription>
-            Sign in to your Email Digest Agent account.
-          </CardDescription>
-        </CardHeader>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+        background:
+          "radial-gradient(circle at 20% 20%, #d1fae5 0%, transparent 40%), radial-gradient(circle at 80% 0%, #fed7aa 0%, transparent 35%), linear-gradient(135deg, #f8fafc 0%, #fff7ed 100%)",
+      }}
+    >
+      <Container maxWidth="sm" disableGutters>
+        <Card sx={{ p: { xs: 2, sm: 3 }, backdropFilter: "blur(8px)" }}>
+          <CardContent>
+            <Stack spacing={3}>
+              <Stack spacing={1} sx={{ alignItems: "center", textAlign: "center" }}>
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: "primary.main",
+                    color: "primary.contrastText",
+                    boxShadow: "0 10px 24px rgba(15,118,110,0.35)",
+                  }}
+                >
+                  <MarkEmailUnreadRoundedIcon fontSize="large" />
+                </Box>
+                <Typography variant="h4">Welcome back</Typography>
+                <Typography color="text.secondary">
+                  Sign in to your Email Digest Agent account.
+                </Typography>
+              </Stack>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+              <Box component="form" onSubmit={handleSubmit}>
+                <Stack spacing={2}>
+                  <TextField
+                    id="email"
+                    name="email"
+                    type="email"
+                    label="Email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    fullWidth
+                  />
 
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-            </div>
+                  <TextField
+                    id="password"
+                    name="password"
+                    type="password"
+                    label="Password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="********"
+                    fullWidth
+                  />
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+                  {error && <Alert severity="error">{error}</Alert>}
 
-            <Button type="submit" className="w-full h-11" disabled={isPending}>
-              {isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Signing in…</>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
-          </form>
-        </CardContent>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={isPending}
+                    fullWidth
+                    startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : null}
+                  >
+                    {isPending ? "Signing in..." : "Sign in"}
+                  </Button>
+                </Stack>
+              </Box>
 
-        <CardFooter className="justify-center">
-          <p className="text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="font-medium text-primary hover:underline">
-              Sign up
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                Don&apos;t have an account?{" "}
+                <MuiLink component={Link} href="/register" underline="hover" color="primary.main">
+                  Sign up
+                </MuiLink>
+              </Typography>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }

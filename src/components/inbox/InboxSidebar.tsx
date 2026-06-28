@@ -1,16 +1,32 @@
 "use client";
 
-import { Bell, User, Tag, Megaphone, Archive, Settings, Mail } from "lucide-react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import {
+  Avatar,
+  Box,
+  Chip,
+  Divider,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Stack,
+  Typography,
+} from "@mui/material";
+import MailRoundedIcon from "@mui/icons-material/MailRounded";
+import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
+import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import SellRoundedIcon from "@mui/icons-material/SellRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
+import ArchiveRoundedIcon from "@mui/icons-material/ArchiveRounded";
 
 const CATEGORIES = [
-  { key: "all", label: "All", icon: Mail },
-  { key: "alert", label: "Alerts", icon: Bell },
-  { key: "personal", label: "Personal", icon: User },
-  { key: "newsletter", label: "Newsletter", icon: Tag },
-  { key: "promotion", label: "Promotions", icon: Megaphone },
-  { key: "other", label: "Other", icon: Archive },
+  { key: "all", label: "All", icon: MailRoundedIcon },
+  { key: "alert", label: "Alerts", icon: NotificationsActiveRoundedIcon },
+  { key: "personal", label: "Personal", icon: PersonRoundedIcon },
+  { key: "newsletter", label: "Newsletter", icon: SellRoundedIcon },
+  { key: "promotion", label: "Promotions", icon: CampaignRoundedIcon },
+  { key: "other", label: "Other", icon: ArchiveRoundedIcon },
 ] as const;
 
 type Props = {
@@ -21,55 +37,54 @@ type Props = {
 
 export function InboxSidebar({ categoryCounts, selectedCategory, onSelectCategory }: Props) {
   return (
-    <div className="w-28 border-r shrink-0 flex flex-col h-full bg-zinc-50 dark:bg-zinc-900">
-      <div className="px-3 py-4 border-b">
-        <div className="flex items-center gap-1.5">
-          <Mail className="h-4 w-4 text-primary" />
-          <span className="text-xs font-bold truncate">Inbox</span>
-        </div>
-      </div>
+    <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", px: 2, py: 2 }}>
+        <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main" }}>
+          <MailRoundedIcon sx={{ fontSize: 18 }} />
+        </Avatar>
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Smart Inbox
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Fast triage
+          </Typography>
+        </Box>
+      </Stack>
 
-      <nav className="flex-1 overflow-y-auto py-2 space-y-0.5 px-1">
+      <Divider />
+
+      <List dense sx={{ flex: 1, py: 1 }}>
         {CATEGORIES.map(({ key, label, icon: Icon }) => {
           const count = categoryCounts[key] ?? 0;
           const isSelected = selectedCategory === key;
           return (
-            <button
-              key={key}
-              onClick={() => onSelectCategory(key)}
-              className={cn(
-                "w-full flex flex-col items-center gap-1 rounded-md py-2 px-1 text-center transition-colors",
-                isSelected
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="text-[10px] font-medium leading-tight">{label}</span>
-              {count > 0 && (
-                <span
-                  className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded-full font-semibold",
-                    isSelected ? "bg-primary text-primary-foreground" : "bg-muted",
-                  )}
-                >
-                  {count}
-                </span>
-              )}
-            </button>
+            <ListItem key={key} disablePadding sx={{ px: 1 }}>
+              <ListItemButton
+                selected={isSelected}
+                onClick={() => onSelectCategory(key)}
+                sx={{ borderRadius: 2.5, py: 1 }}
+              >
+                <ListItemIcon sx={{ minWidth: 34 }}>
+                  <Icon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary={label}
+                  slotProps={{ primary: { sx: { fontSize: 13, fontWeight: isSelected ? 700 : 500 } } }}
+                />
+                {count > 0 && (
+                  <Chip
+                    size="small"
+                    color={isSelected ? "primary" : "default"}
+                    label={count}
+                    sx={{ height: 20, fontSize: 11 }}
+                  />
+                )}
+              </ListItemButton>
+            </ListItem>
           );
         })}
-      </nav>
-
-      <div className="border-t p-2">
-        <Link
-          href="/settings"
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors py-1"
-        >
-          <Settings className="h-4 w-4" />
-          <span className="text-[10px]">Settings</span>
-        </Link>
-      </div>
-    </div>
+      </List>
+    </Stack>
   );
 }

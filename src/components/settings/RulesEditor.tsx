@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { saveRules } from "@/lib/actions/rules-actions";
-import { Loader2, Save, Plus, Trash2 } from "lucide-react";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 
 const EXAMPLES = [
   "Always keep emails from school",
@@ -60,78 +70,74 @@ export function RulesEditor({ initialRules }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Rule inputs */}
-      <div className="space-y-3">
+    <Stack spacing={3}>
+      <Stack spacing={1.4}>
         {rules.map((rule, i) => (
-          <div key={i} className="flex gap-2">
-            <Textarea
+          <Stack key={i} direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
+            <TextField
               value={rule}
               onChange={(e) => updateRule(i, e.target.value)}
               placeholder={`Rule ${i + 1} — e.g. "Archive all newsletters"`}
-              className="resize-none min-h-[60px]"
-              rows={2}
+              multiline
+              minRows={2}
+              fullWidth
             />
-            <Button
-              variant="ghost"
-              size="icon"
+            <IconButton
+              color="error"
               onClick={() => removeRule(i)}
               disabled={rules.length === 1}
-              className="shrink-0 text-muted-foreground hover:text-destructive"
+              sx={{ mt: 0.5 }}
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+              <DeleteOutlineRoundedIcon fontSize="small" />
+            </IconButton>
+          </Stack>
         ))}
-      </div>
+      </Stack>
 
-      {/* Add rule button */}
-      <Button variant="outline" size="sm" onClick={addRule} className="gap-1.5">
-        <Plus className="h-4 w-4" />
+      <Button variant="outlined" size="small" onClick={addRule} startIcon={<AddRoundedIcon />} sx={{ alignSelf: "flex-start" }}>
         Add rule
       </Button>
 
-      {/* Example rules */}
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <Box>
+        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>
           Examples — click to add
-        </p>
-        <div className="flex flex-wrap gap-2">
+        </Typography>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 1, flexWrap: "wrap" }}>
           {EXAMPLES.map((ex) => (
-            <Badge
+            <Chip
               key={ex}
-              variant="secondary"
-              className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs font-normal"
+              label={ex}
+              variant="outlined"
               onClick={() => addExample(ex)}
+              sx={{ cursor: "pointer" }}
             >
-              {ex}
-            </Badge>
+            </Chip>
           ))}
-        </div>
-      </div>
+        </Stack>
+      </Box>
 
-      {/* Save */}
-      <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={isPending} className="gap-2">
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{ alignItems: { xs: "stretch", sm: "center" } }}
+      >
+        <Button onClick={handleSave} disabled={isPending} variant="contained" startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <SaveRoundedIcon />}>
           {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            "Saving..."
           ) : (
-            <Save className="h-4 w-4" />
+            "Save rules"
           )}
-          Save rules
         </Button>
         {saved && (
-          <p className="text-sm text-green-600 dark:text-green-400">
-            Rules saved — next digest will apply them.
-          </p>
+          <Alert severity="success" sx={{ py: 0 }}>
+            Rules saved. The next digest will apply them.
+          </Alert>
         )}
-      </div>
+      </Stack>
 
-      <p className="text-xs text-muted-foreground">
-        Rules are evaluated by <code className="text-xs">qwen3.7-max</code>{" "}
-        against each email during processing. Use plain language — the AI
-        interprets them for you.
-      </p>
-    </div>
+      <Typography variant="caption" color="text.secondary">
+        Rules are evaluated by qwen3.7-max against each email during processing. Use plain language and specific instructions.
+      </Typography>
+    </Stack>
   );
 }

@@ -1,9 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, X, Reply, CalendarPlus, ChevronDown, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Collapse,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
+import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
+import EventRoundedIcon from "@mui/icons-material/EventRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import { approveAction, rejectAction } from "@/lib/actions/email-actions";
 import type { EmailRecord } from "@/types/db";
 
@@ -19,15 +36,30 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
 
   if (!record) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground p-8">
-        <p className="text-sm">Select an email to read</p>
-        <p className="text-xs">
-          Forward your Gmail to{" "}
-          <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">
-            {forwardingAddress}
-          </code>
-        </p>
-      </div>
+      <Box
+        sx={{
+          height: "100%",
+          display: "grid",
+          placeItems: "center",
+          p: 3,
+          textAlign: "center",
+        }}
+      >
+        <Stack spacing={1}>
+          <Typography variant="body1" color="text.secondary">
+            Select an email to read
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Forward your Gmail to{" "}
+            <Box
+              component="span"
+              sx={{ px: 0.8, py: 0.3, borderRadius: 1, bgcolor: "grey.200", color: "text.primary" }}
+            >
+              {forwardingAddress}
+            </Box>
+          </Typography>
+        </Stack>
+      </Box>
     );
   }
 
@@ -60,158 +92,210 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
     Array.isArray(rec.calendar_events) && rec.calendar_events.length > 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="border-b px-6 py-4 shrink-0">
-        <h2 className="text-base font-semibold leading-tight mb-1">
+    <Stack sx={{ height: "100%", minWidth: 0 }}>
+      <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+        <Typography variant="h6" sx={{ mb: 0.75 }}>
           {rec.subject}
-        </h2>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-          <span>
-            <span className="font-medium text-foreground">From:</span>{" "}
+        </Typography>
+        <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+          <Typography variant="body2" color="text.secondary">
+            <Box component="span" sx={{ color: "text.primary", fontWeight: 600 }}>
+              From:
+            </Box>{" "}
             {rec.sender}
-          </span>
+          </Typography>
           {rec.received_at && (
-            <span>
+            <Typography variant="body2" color="text.secondary">
               {new Date(rec.received_at).toLocaleString()}
-            </span>
+            </Typography>
           )}
-          <Badge variant="secondary" className="text-[10px] capitalize">
-            {rec.category}
-          </Badge>
-        </div>
-      </div>
+          <Chip label={rec.category} size="small" sx={{ textTransform: "capitalize" }} />
+        </Stack>
+      </Box>
 
-      {/* Action bar */}
-      <div className="border-b px-6 py-2 flex items-center gap-2 shrink-0 bg-zinc-50 dark:bg-zinc-900">
+      <Stack
+        direction="row"
+        spacing={1}
+        useFlexGap
+        sx={{
+          flexWrap: "wrap",
+          px: { xs: 2, md: 3 },
+          py: 1.25,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          bgcolor: "background.paper",
+        }}
+      >
         {status === "pending" ? (
           <>
             <Button
-              size="sm"
-              className="h-7 text-xs gap-1.5 bg-green-600 hover:bg-green-700"
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<CheckCircleRoundedIcon fontSize="small" />}
               onClick={handleApprove}
               disabled={isPending}
             >
-              <Check className="h-3 w-3" />
               Approve
             </Button>
             <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1.5 border-red-300 text-red-600 hover:bg-red-50"
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<CancelRoundedIcon fontSize="small" />}
               onClick={handleReject}
               disabled={isPending}
             >
-              <X className="h-3 w-3" />
               Reject
             </Button>
           </>
         ) : (
-          <Badge variant="secondary" className="text-[10px] capitalize">
-            {status}
-          </Badge>
+          <Chip
+            label={status}
+            size="small"
+            color={status === "executed" ? "success" : status === "rejected" ? "error" : "default"}
+            sx={{ textTransform: "capitalize" }}
+          />
         )}
 
-        <a href={mailtoUrl}>
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
-            <Reply className="h-3 w-3" />
-            Reply
+        <Button
+          component="a"
+          href={mailtoUrl}
+          variant="outlined"
+          size="small"
+          startIcon={<ReplyRoundedIcon fontSize="small" />}
+        >
+          Reply
+        </Button>
+
+        {hasCalendar && (
+          <Button
+            component="a"
+            href={`/api/ics/${rec.id}`}
+            download
+            variant="outlined"
+            size="small"
+            startIcon={<EventRoundedIcon fontSize="small" />}
+          >
+            Add to Cal
           </Button>
-        </a>
-
-        {hasCalendar && (
-          <a href={`/api/ics/${rec.id}`} download>
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5">
-              <CalendarPlus className="h-3 w-3" />
-              Add to Cal
-            </Button>
-          </a>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-        {/* AI Summary */}
-        <div className="border-l-4 border-violet-400 pl-3 py-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-500 mb-1">
-            Summary
-          </p>
-          <p className="text-sm">{rec.summary}</p>
-        </div>
-
-        {/* Action Items */}
-        {rec.todos?.length > 0 && (
-          <div className="border-l-4 border-yellow-400 pl-3 py-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-yellow-600 mb-1">
-              Action Items
-            </p>
-            <ul className="space-y-1">
-              {rec.todos.map((todo, i) => (
-                <li key={i} className="text-sm flex gap-2">
-                  <span className="text-yellow-500 shrink-0">•</span>
-                  {todo}
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
 
-        {/* Draft body preview */}
+      </Stack>
+
+      <Box sx={{ overflowY: "auto", p: { xs: 2, md: 3 } }}>
+        <Stack spacing={2}>
+          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "primary.main" }}>
+            <Typography variant="overline" color="primary.main" sx={{ fontWeight: 700 }}>
+              Summary
+            </Typography>
+            <Typography variant="body2">{rec.summary}</Typography>
+          </Paper>
+
+          {rec.todos?.length > 0 && (
+            <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "warning.main" }}>
+              <Typography variant="overline" color="warning.main" sx={{ fontWeight: 700 }}>
+                Action Items
+              </Typography>
+              <List dense disablePadding>
+                {rec.todos.map((todo, i) => (
+                  <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
+                    <ListItemText
+                      primary={`• ${todo}`}
+                      slotProps={{ primary: { variant: "body2" } }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          )}
+
         {rec.draft_body && (
-          <div className="border-l-4 border-blue-400 pl-3 py-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-500 mb-1">
+          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "info.main" }}>
+            <Typography variant="overline" color="info.main" sx={{ fontWeight: 700 }}>
               Draft Reply
-            </p>
-            <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
               {rec.draft_body}
-            </p>
-          </div>
+            </Typography>
+          </Paper>
         )}
 
-        {/* Calendar events */}
         {hasCalendar && (
-          <div className="border-l-4 border-green-400 pl-3 py-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-green-600 mb-1">
+          <Paper variant="outlined" sx={{ p: 2, borderLeft: "4px solid", borderLeftColor: "success.main" }}>
+            <Typography variant="overline" color="success.main" sx={{ fontWeight: 700 }}>
               Calendar Events
-            </p>
-            <ul className="space-y-1">
+            </Typography>
+            <List dense disablePadding>
               {rec.calendar_events?.map((evt, i) => (
-                <li key={i} className="text-sm">
-                  <span className="font-medium">{evt.title}</span>
-                  {" — "}
-                  <span className="text-muted-foreground">
+                <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
+                  <ListItemText
+                    primary={evt.title}
+                    slotProps={{
+                      primary: { variant: "body2", sx: { fontWeight: 600 } },
+                      secondary: { variant: "caption" },
+                    }}
+                    secondary={
+                      <>
                     {new Date(evt.start).toLocaleString()}
                     {evt.end ? ` → ${new Date(evt.end).toLocaleString()}` : ""}
-                  </span>
-                </li>
+                      </>
+                    }
+                  />
+                </ListItem>
               ))}
-            </ul>
-          </div>
+            </List>
+          </Paper>
         )}
-        {/* Original email body */}
+
         {rec.raw_body && (
-          <div className="border rounded-md overflow-hidden">
-            <button
-              className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/50 transition-colors"
+          <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+            <Button
+              fullWidth
+              variant="text"
+              color="inherit"
               onClick={() => setShowOriginal((v) => !v)}
+              sx={{
+                justifyContent: "flex-start",
+                px: 2,
+                py: 1,
+                borderRadius: 0,
+                color: "text.secondary",
+              }}
+              startIcon={
+                showOriginal ? (
+                    <ExpandMoreRoundedIcon fontSize="small" />
+                ) : (
+                    <ChevronRightRoundedIcon fontSize="small" />
+                )
+              }
             >
-              {showOriginal ? (
-                <ChevronDown className="h-3 w-3 shrink-0" />
-              ) : (
-                <ChevronRight className="h-3 w-3 shrink-0" />
-              )}
               Original Email
-            </button>
-            {showOriginal && (
-              <div className="border-t px-3 py-3 bg-muted/20">
-                <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground leading-relaxed">
+            </Button>
+            <Divider />
+            <Collapse in={showOriginal} timeout="auto" unmountOnExit>
+              <Box sx={{ p: 2, bgcolor: "grey.50" }}>
+                <Typography
+                  component="pre"
+                  sx={{
+                    m: 0,
+                    fontSize: 12,
+                    whiteSpace: "pre-wrap",
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    color: "text.secondary",
+                    lineHeight: 1.6,
+                  }}
+                >
                   {rec.raw_body}
-                </pre>
-              </div>
-            )}
-          </div>
+                </Typography>
+              </Box>
+            </Collapse>
+          </Paper>
         )}
-      </div>
-    </div>
+
+          {isPending && <Alert severity="info">Updating action status...</Alert>}
+        </Stack>
+      </Box>
+    </Stack>
   );
 }

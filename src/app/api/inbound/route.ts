@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { pool } from "@/lib/db";
 import { parseMimeEmail } from "@/lib/email/parser";
+import {
+  getUserByForwardingAddress,
+  isSenderWhitelisted,
+} from "@/lib/email/forwarding-address";
 import { processEmailsBatched } from "@/lib/ai/processor";
 import { sendPushNotification } from "@/lib/push/notify";
 
@@ -30,14 +34,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing X-Recipient" }, { status: 400 });
   }
 
-  const userResult = await pool.query<{ id: string }>(
-    `SELECT id FROM users WHERE forwarding_address = $1`,
-    [recipient.toLowerCase()],
-  );
-  if (!userResult.rows.length) {
+  const user = await getUserByForwardingAddress(recipient);
+  if (!user) {
     return NextResponse.json({ error: "Unknown recipient" }, { status: 404 });
   }
-  const userId = userResult.rows[0].id;
+  const userId = user.id;
 
   // ── Parse MIME ────────────────────────────────────────────────────────────
   const rawBuffer = Buffer.from(await req.arrayBuffer());
@@ -47,6 +48,15 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[inbound] MIME parse error:", err);
     return NextResponse.json({ error: "Parse failed" }, { status: 422 });
+  }
+
+  // ── Sender whitelist check ───────────────────────────────────────────────
+  const senderAllowed = await isSenderWhitelisted(userId, email.from);
+  if (!senderAllowed) {
+    console.log(
+      `[inbound] skipped: sender not whitelisted (user=${userId}, sender="${email.from}")`,
+    );
+    return NextResponse.json({ ok: true, skipped: "sender_not_whitelisted" }, { status: 202 });
   }
 
   // ── Load user rules ───────────────────────────────────────────────────────

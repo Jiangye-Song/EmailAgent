@@ -114,7 +114,7 @@ graph TB
 - [x] **Email/Password Sign In** — Login via NextAuth.js credentials provider
 - [x] **Forwarding Email Address** — Each user gets a unique address like `user_<id>@emailagent.top`
 - [x] **Inbound Email Webhook** — Cloudflare Email Router → `/api/inbound` receives forwarded emails
-- [ ] **User Authorization Check** — Verify sender is registered (by email address or domain whitelist) _(table exists, enforcement not yet wired in `/api/inbound`)_
+- [x] **User Authorization Check** — Verify forwarding sender is authorized (by email address or domain whitelist) _(enforced in `/api/inbound`; non-whitelisted senders are skipped)_
 - [x] **Email Classification** — Categorize via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / Other)
 - [x] **Email Summarization** — Generate 2-sentence summary + action items via `qwen3.7-plus`
 - [x] **Semantic Search Index** — Embed with `text-embedding-v4`, store in PolarDB pgvector
@@ -160,6 +160,7 @@ graph TB
   - [x] Form: email + password + confirm password
   - [x] Client-side validation + server `POST /api/auth/register`
   - [x] Hash password (bcrypt cost 12) → insert into DB
+  - [x] Seed `sender_whitelist` with the registration email (default trusted forwarding sender)
   - [x] Redirect to `/login?registered=1` on success
 - [x] Implement login page (`src/app/login/page.tsx`):
   - [x] Email/password form using credentials provider
@@ -283,7 +284,7 @@ create table sender_whitelist (
   - [x] Validate CF_INBOUND_SECRET via HMAC
   - [x] Parse email via `parseMimeEmail()`
   - [x] Look up user by forwarding address (extract `user_abc123@emailagent.top` → find user)
-  - [ ] Check sender authorization: is sender in `sender_whitelist` for this user?
+  - [x] Check sender authorization: is sender in `sender_whitelist` for this user?
     - If NOT: skip processing, log event
     - If YES: proceed
   - [x] Store raw email in `email_records` (with user_id, sender, subject, body)
@@ -294,7 +295,7 @@ create table sender_whitelist (
 
 - [x] `src/lib/email/forwarding-address.ts` — Enhanced:
   - [x] Add `getUserByForwardingAddress(address)` — fast lookup for `/api/inbound`
-  - [ ] Add `updateSenderWhitelist(userId, senderEmail)` — auto-trust new senders (or require approval)
+  - [x] Add whitelist helpers (`addSenderWhitelistEntry`, `addSenderWhitelistDomain`, `removeSenderWhitelistEntry`, `isSenderWhitelisted`)
 
 **Files to Create:**
 - `cloudflare/email-worker.ts` (deployed to Cloudflare, not part of Next.js build)
@@ -408,15 +409,15 @@ create table sender_whitelist (
   - Copy-to-clipboard button
   - Show instructions for popular email providers (Gmail, Outlook, Apple Mail)
 
-- [ ] `src/components/settings/SenderWhitelist.tsx` — NEW _(not yet implemented)_:
+- [x] `src/components/settings/SenderWhitelist.tsx` — NEW:
   - List of approved senders
   - Add new sender (email or domain)
   - Remove sender
 
-- [ ] Enhance `/api/inbound` sender authorization:
+- [x] Enhance `/api/inbound` sender authorization:
   - Check `sender_whitelist` table for sender email
-  - If not in whitelist: reject OR auto-approve first-time senders (configurable)
-  - Log all received emails for user review
+  - If not in whitelist: skip processing and log event
+  - Domain-based whitelist matching supported
 
 - [x] Enhance `processEmailBatch()`:
   - Load user rules from `user_rules` table
@@ -433,6 +434,8 @@ create table sender_whitelist (
 - `src/components/settings/ForwardingInfo.tsx` (new)
 - `src/components/settings/SenderWhitelist.tsx` (new)
 - Update `/api/inbound` for whitelist checks
+
+**Implementation note (forwarding model):** Sender whitelist entries represent forwarding sender mailboxes (the address configured to auto-forward into `emailagent.top`), not original recipients in an email thread.
 
 ---
 

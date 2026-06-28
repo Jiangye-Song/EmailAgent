@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
+import { SenderWhitelist } from "@/components/settings/SenderWhitelist";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import Link from "next/link";
@@ -29,28 +30,55 @@ async function getUserRules(userId: string): Promise<string[]> {
   return rows.map((r) => r.rule_text);
 }
 
+type WhitelistRow = {
+  id: string;
+  sender_email: string;
+  sender_domain: string | null;
+};
+
+async function getSenderWhitelist(userId: string) {
+  const { rows } = await pool.query<WhitelistRow>(
+    `SELECT id, sender_email, sender_domain
+     FROM sender_whitelist
+     WHERE user_id = $1
+     ORDER BY created_at DESC`,
+    [userId],
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    senderEmail: row.sender_email,
+    senderDomain: row.sender_domain,
+  }));
+}
+
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [rules, forwardingAddress] = await Promise.all([
+  const [rules, forwardingAddress, whitelistEntries] = await Promise.all([
     getUserRules(session.user.id),
     ensureForwardingAddress(session.user.id),
+    getSenderWhitelist(session.user.id),
   ]);
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(145deg, rgba(255,247,237,0.7) 0%, rgba(239,246,255,0.6) 100%)",
+        bgcolor: "background.default",
       }}
     >
       <AppBar
         position="sticky"
         color="transparent"
         elevation={0}
-        sx={{ borderBottom: "1px solid", borderColor: "divider", backdropFilter: "blur(8px)" }}
+        sx={{
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          backdropFilter: "blur(8px)",
+          bgcolor: "background.paper",
+        }}
       >
         <Toolbar>
           <Stack direction="row" spacing={1.2} sx={{ alignItems: "center", flexGrow: 1 }}>
@@ -79,6 +107,23 @@ export default async function SettingsPage() {
                 </Box>
                 <Divider />
                 <ForwardingInfo address={forwardingAddress} />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" sx={{ mb: 0.5 }}>
+                    Sender whitelist
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Add the email address that is configured to auto-forward into your agent address. This whitelist checks the forwarding sender mailbox, not the original recipient in the email thread.
+                  </Typography>
+                </Box>
+                <Divider />
+                <SenderWhitelist initialEntries={whitelistEntries} />
               </Stack>
             </CardContent>
           </Card>

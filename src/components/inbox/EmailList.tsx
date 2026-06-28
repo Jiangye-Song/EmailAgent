@@ -46,7 +46,7 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
   }
 
   return (
-    <List disablePadding sx={{ overflowY: "auto", height: "100%" }}>
+    <List disablePadding sx={{ overflowY: "auto", height: "100%", bgcolor: "background.paper" }}>
       {records.map((record) => {
         const isSelected = record.id === selectedId;
         const relativeTime = record.received_at
@@ -58,11 +58,16 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
             <ListItemButton
               selected={isSelected}
               onClick={() => onSelect(record.id)}
-              sx={{ alignItems: "flex-start", py: 1.5, px: 2 }}
+              sx={{
+                alignItems: "flex-start",
+                py: 1.5,
+                px: 2,
+                color: "text.primary",
+              }}
             >
               <Stack spacing={0.6} sx={{ width: "100%", minWidth: 0 }}>
                 <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700 }} noWrap>
+                  <Typography variant="caption" color="text.primary" sx={{ fontWeight: 700 }} noWrap>
                 {record.sender.split("<")[0].trim() || record.sender}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>

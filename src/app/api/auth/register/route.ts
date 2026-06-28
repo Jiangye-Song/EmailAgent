@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { pool } from "@/lib/db";
-import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
+import {
+  addSenderWhitelistEntry,
+  ensureForwardingAddress,
+} from "@/lib/email/forwarding-address";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -53,9 +56,11 @@ export async function POST(req: NextRequest) {
   );
 
   const userId = rows[0].id;
+  const normalizedEmail = email.toLowerCase();
 
   // Generate forwarding address immediately so it's ready on first login
   await ensureForwardingAddress(userId);
+  await addSenderWhitelistEntry(userId, normalizedEmail);
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

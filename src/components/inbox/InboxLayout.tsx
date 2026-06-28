@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  alpha,
   AppBar,
   Box,
   Drawer,
@@ -30,6 +31,7 @@ type Props = {
 
 export function InboxLayout({ records, categoryCounts, forwardingAddress }: Props) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -48,8 +50,9 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
     <Box
       sx={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, rgba(255,247,237,0.7) 0%, rgba(236,253,245,0.7) 100%)",
+        background: isDark
+          ? "linear-gradient(140deg, rgba(2,6,23,0.92) 0%, rgba(15,23,42,0.9) 50%, rgba(17,24,39,0.88) 100%)"
+          : "linear-gradient(135deg, rgba(255,247,237,0.75) 0%, rgba(236,253,245,0.75) 100%)",
       }}
     >
       <AppBar
@@ -60,6 +63,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
           borderBottom: "1px solid",
           borderColor: "divider",
           backdropFilter: "blur(8px)",
+          bgcolor: alpha(theme.palette.background.paper, isDark ? 0.85 : 0.75),
         }}
       >
         <Toolbar>

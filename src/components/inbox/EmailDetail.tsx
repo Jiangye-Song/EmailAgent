@@ -115,19 +115,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             Select an email to read
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Forward your Gmail to{" "}
-            <Box
-              component="span"
-              sx={{
-                px: 0.8,
-                py: 0.3,
-                borderRadius: 1,
-                bgcolor: "grey.200",
-                color: "text.primary",
-              }}
-            >
-              {forwardingAddress}
-            </Box>
+            Forward your emails to <b>{forwardingAddress}</b>
           </Typography>
         </Stack>
       </Box>
@@ -379,9 +367,17 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
               title="Original Email"
               titleColor="text.secondary"
               defaultExpanded={false}
-              borderColor="grey.400"
+              borderColor="divider"
             >
-              <Box sx={{ p: 2, bgcolor: "grey.50" }}>
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(15, 23, 42, 0.82)"
+                      : "grey.50",
+                }}
+              >
                 <Typography
                   component="pre"
                   sx={{
@@ -389,7 +385,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
                     fontSize: 12,
                     whiteSpace: "pre-wrap",
                     fontFamily: "var(--font-geist-mono), monospace",
-                    color: "text.secondary",
+                    color: "text.primary",
                     lineHeight: 1.6,
                   }}
                 >

@@ -1403,7 +1403,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground p-8">
         <p className="text-sm">Select an email to read</p>
         <p className="text-xs">
-          Forward your Gmail to{" "}
+          Forward your emails to{" "}
           <code className="bg-muted px-1.5 py-0.5 rounded text-foreground">
             {forwardingAddress}
           </code>

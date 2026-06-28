@@ -43,9 +43,8 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
 
   function handleApprove() {
     startTransition(async () => {
-      const url = await approveAction(rec.id);
+      await approveAction(rec.id);
       setLocalStatus("executed");
-      if (url) window.open(url, "_blank");
     });
   }
 
@@ -175,7 +174,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
               Calendar Events
             </p>
             <ul className="space-y-1">
-              {rec.calendar_events.map((evt, i) => (
+              {rec.calendar_events?.map((evt, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-medium">{evt.title}</span>
                   {" — "}

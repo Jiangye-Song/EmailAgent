@@ -1,16 +1,25 @@
 import webpush from "web-push";
 import { pool } from "@/lib/db";
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-);
+// Lazily initialise VAPID so missing env vars don't crash at module load time
+let vapidInitialised = false;
+function ensureVapid() {
+  if (vapidInitialised) return;
+  const subject = process.env.VAPID_SUBJECT;
+  const pubKey = process.env.VAPID_PUBLIC_KEY;
+  const privKey = process.env.VAPID_PRIVATE_KEY;
+  if (!subject || !pubKey || !privKey) {
+    throw new Error("VAPID env vars (VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY) are not set");
+  }
+  webpush.setVapidDetails(subject, pubKey, privKey);
+  vapidInitialised = true;
+}
 
 export async function sendPushNotification(
   userId: string,
   payload: { title: string; body: string },
 ): Promise<void> {
+  ensureVapid();
   const { rows } = await pool.query<{
     endpoint: string;
     p256dh: string;

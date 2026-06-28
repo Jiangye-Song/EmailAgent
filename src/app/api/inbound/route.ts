@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
 
   // ── Push notification for calendar events ─────────────────────────────────
   const processed = results[0];
-  if (processed?.calendarEvents?.length) {
+  if (processed?.ruleMatches?.length) {
     await sendPushNotification(userId, {
-      title: "Calendar event detected",
+      title: "Rules triggered",
       body: email.subject,
     }).catch((err) => console.warn("[inbound] Push failed:", err));
   }

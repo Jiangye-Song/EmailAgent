@@ -5,11 +5,14 @@ create extension if not exists "uuid-ossp";
 
 -- ─── NextAuth.js v5 tables (@auth/pg-adapter) ───────────────────────────────
 create table if not exists users (
-  id            uuid        primary key default uuid_generate_v4(),
-  name          text,
-  email         text        unique,
-  "emailVerified" timestamptz,
-  image         text
+  id                  uuid        primary key default uuid_generate_v4(),
+  name                text,
+  email               text        unique not null,
+  "emailVerified"     timestamptz,
+  image               text,
+  password_hash       text,                    -- bcrypt hash (null for OAuth users)
+  forwarding_address  text        unique,      -- e.g. abc12345@emailagent.top
+  created_at          timestamptz default now()
 );
 
 create table if not exists accounts (
@@ -46,7 +49,7 @@ create table if not exists verification_tokens (
 create table if not exists email_records (
   id                 uuid        primary key default uuid_generate_v4(),
   user_id            uuid        not null references users(id) on delete cascade,
-  gmail_id           text        not null,
+  message_id         text        not null,
   subject            text,
   sender             text,
   received_at        timestamptz,
@@ -55,11 +58,16 @@ create table if not exists email_records (
   todos              jsonb       default '[]',
   recommended_action text        check (recommended_action in ('archive','keep','draft_reply')),
   action_status      text        check (action_status in ('pending','approved','rejected','executed')) default 'pending',
-  raw_snippet        text,
-  embedding          vector(1024),   -- text-embedding-v4 output (1024-dim default)
-  attachment_urls    jsonb       default '[]',  -- Gmail attachment download URLs (no OSS in Phase 1)
+  raw_body           text,                             -- full plain-text body of the forwarded email
+  draft_body         text,                             -- AI-generated draft reply (Phase 5)
+  calendar_events    jsonb       default '[]',          -- AI-extracted calendar events (Phase 5)
+  embedding          vector(1024),                     -- text-embedding-v4 output (1024-dim default)
+  attachment_urls    jsonb       default '[]',          -- attachment metadata from forwarded email
   processed_at       timestamptz default now()
 );
+
+create index if not exists email_records_user_idx    on email_records (user_id);
+create index if not exists email_records_received_idx on email_records (received_at desc);
 
 create index if not exists email_records_embedding_idx
   on email_records using hnsw (embedding vector_cosine_ops);
@@ -81,30 +89,12 @@ create table if not exists user_rules (
   created_at timestamptz default now()
 );
 
--- ─── Phase 6 migration — auto-forwarding inbox ──────────────────────────────
-
--- Each user gets a unique forwarding address e.g. abc12345@yourdomain.com
-alter table users
-  add column if not exists forwarding_address text unique;
-
--- AI-extracted calendar events from email body
-alter table email_records
-  add column if not exists calendar_events jsonb default '[]';
-
--- AI-generated draft reply body (populated when recommended_action = 'draft_reply')
-alter table email_records
-  add column if not exists draft_body text;
-
--- Unique index so ON CONFLICT (gmail_id, user_id) works for deduplication
-create unique index if not exists email_records_gmail_id_user_id_idx
-  on email_records (gmail_id, user_id);
-
--- Web Push subscriptions for PWA notifications
-create table if not exists push_subscriptions (
-  id         uuid        primary key default uuid_generate_v4(),
-  user_id    uuid        not null references users(id) on delete cascade,
-  endpoint   text        not null unique,
-  p256dh     text        not null,
-  auth       text        not null,
-  created_at timestamptz default now()
+-- Authorized senders who can forward to each user's address
+create table if not exists sender_whitelist (
+  id             uuid        primary key default uuid_generate_v4(),
+  user_id        uuid        not null references users(id) on delete cascade,
+  sender_email   text        not null,   -- exact match, e.g. "john@company.com"
+  sender_domain  text,                  -- domain match, e.g. "company.com" (optional)
+  created_at     timestamptz default now(),
+  unique (user_id, sender_email)
 );

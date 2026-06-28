@@ -7,8 +7,8 @@ import type { EmailRecord } from "@/types/db";
 
 async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
   const { rows } = await pool.query<EmailRecord>(
-    `SELECT id, gmail_id, subject, sender, received_at, category, summary,
-            todos, recommended_action, action_status, raw_snippet,
+    `SELECT id, message_id, subject, sender, received_at, category, summary,
+            todos, recommended_action, action_status, raw_body,
             draft_body, calendar_events, processed_at
      FROM email_records
      WHERE user_id = $1

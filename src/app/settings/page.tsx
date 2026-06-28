@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
-import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { RulesEditor } from "@/components/settings/RulesEditor";
+import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
+import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { Separator } from "@/components/ui/separator";
 import { Settings, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-white/80 dark:bg-zinc-900/80 backdrop-blur px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -43,32 +45,31 @@ export default async function SettingsPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-        {/* Forwarding address */}
-        <section className="space-y-3">
+        {/* Forwarding address section */}
+        <section className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold">Gmail forwarding address</h1>
+            <h1 className="text-xl font-bold">Your forwarding address</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              In Gmail → Settings → Forwarding, add this address and enable
-              auto-forwarding.
+              Add this address to the auto-forward rules in your email app. Every
+              email forwarded here will be processed by the AI and appear in your
+              inbox.
             </p>
           </div>
           <Separator />
-          <div className="flex items-center gap-2 p-3 bg-muted rounded-md font-mono text-sm">
-            <span className="flex-1 break-all">{forwardingAddress}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Gmail will send a verification email to this address — check your
-            inbox after adding it.
-          </p>
+          <ForwardingInfo address={forwardingAddress} />
         </section>
 
         {/* Rules section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-bold">User-defined rules</h2>
+            <h1 className="text-xl font-bold">AI rules</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Write plain-language rules to guide how your emails are classified
-              and acted on.
+              and acted on. Rules are applied by{" "}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                qwen3.7-max
+              </code>{" "}
+              during processing.
             </p>
           </div>
           <Separator />

@@ -19,7 +19,9 @@
 | Framework | **Next.js 16** (App Router), React 19, TypeScript 5 |
 | Styling & UI | Tailwind CSS, shadcn/ui, Lucide Icons |
 | Auth & All DB | **Alibaba Cloud PolarDB for PostgreSQL** (single source of truth) |
-| Auth Framework | **NextAuth.js v5 (Auth.js)** + Google OAuth + PolarDB adapter |
+| Auth Framework | **NextAuth.js v5 (Auth.js)** + Credentials provider (email/password) + PolarDB adapter |
+| Email Service | **emailagent.top domain** + **Resend API** (send notifications) |
+| Inbound Emails | **Cloudflare Email Router** → webhook → `/api/inbound` (user auto-forwards to service email) |
 | File Storage | **Alibaba Cloud OSS** — Phase 2 only (Phase 1 stores attachment URLs + digest JSON in PolarDB) |
 | Backend Hosting | **Alibaba Cloud Function Compute 3.0** (Next.js standalone) |
 | Container Registry | **Alibaba Cloud ACR** (Docker image store) |
@@ -49,49 +51,57 @@
 
 ```mermaid
 graph TB
+    subgraph UserMail["User's Email App"]
+        INBOX[User's Inbox\ne.g., Gmail, Outlook]
+    end
+
+    subgraph ServiceEmail["emailagent.top Domain"]
+        SVC_EMAIL["Service Email\ninbox@emailagent.top"]
+    end
+
+    subgraph Cloudflare["Cloudflare Email Router"]
+        CF_ROUTER["Email Router\n(catches inbound to emailagent.top)"]
+        CF_WORKER["Cloudflare Worker\nemail-worker.ts"]
+    end
+
     subgraph Client["Browser / Client"]
         UI[Next.js Frontend\nDashboard + HITL Queue]
     end
 
     subgraph AliyunFC["Alibaba Cloud Function Compute 3.0"]
-        API_PE[POST /api/process-emails]
+        API_INBOUND[POST /api/inbound\nreceives emails]
         API_APR[POST /api/actions/approve]
         API_REJ[POST /api/actions/reject]
         LIB_PROC[lib/ai/processor.ts]
-        LIB_GMAIL[lib/mcp/gmail.ts]
-        LIB_CAL[lib/mcp/calendar.ts]
     end
 
     subgraph QwenCloud["Qwen Cloud (DashScope Intl.)"]
         M_FLASH[qwen3.6-flash\nClassification]
-        M_PLUS[qwen3.7-plus\nSummarize + Todos + Drafts]
-        M_MAX[qwen3.7-max\nRule Engine + Calendar]
+        M_PLUS[qwen3.7-plus\nSummarize + Todos]
+        M_MAX[qwen3.7-max\nRule Engine]
         M_EMBED[text-embedding-v4\nSemantic Search]
     end
 
     subgraph AliyunData["Alibaba Cloud Data"]
-        POLAR[(PolarDB PostgreSQL\nemail_records, user_rules)]
+        POLAR[(PolarDB PostgreSQL\nusers, email_records, user_rules)]
         OSS[OSS Bucket\nAttachments + Exports]
     end
 
-    subgraph Google["Google APIs"]
-        GMAIL[Gmail API]
-        GCAL[Calendar API]
-    end
-
-    UI -->|HTTPS| AliyunFC
-    API_PE --> LIB_PROC
-    API_APR --> LIB_GMAIL
+    INBOX -->|User auto-forwards| SVC_EMAIL
+    SVC_EMAIL -->|Cloudflare MX Records| CF_ROUTER
+    CF_ROUTER --> CF_WORKER
+    CF_WORKER -->|webhook| API_INBOUND
+    API_INBOUND --> LIB_PROC
     LIB_PROC -->|Promise.all| M_FLASH
     LIB_PROC -->|summarize| M_PLUS
     LIB_PROC -->|rules| M_MAX
     LIB_PROC -->|index| M_EMBED
     LIB_PROC --> POLAR
     LIB_PROC --> OSS
-    LIB_GMAIL --> GMAIL
-    LIB_CAL --> GCAL
-    UI -->|NextAuth.js OAuth| POLAR
-    POLAR -->|access_token| AliyunFC
+    UI -->|HTTPS| AliyunFC
+    UI -->|NextAuth.js email/pwd| POLAR
+    POLAR --> API_APR
+    POLAR --> API_REJ
 ```
 
 ---
@@ -100,31 +110,34 @@ graph TB
 
 ### P0 — Must Have
 
-- [ ] Gmail Email Reading (OAuth + fetch unread emails)
-- [ ] Email Classification via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / …)
-- [ ] Email Summarization via `qwen3.7-plus` (concise per-email summary)
-- [ ] Todo Extraction via `qwen3.7-plus` (actionable tasks from email bodies)
-- [ ] Semantic search index via `text-embedding-v4` (stored in PolarDB pgvector, 1024-dim)
-- [ ] Daily Digest Page (`/dashboard`)
-- [ ] HITL Confirmation Queue (Approve / Reject actions before execution)
+- [ ] **Email/Password Registration** — Sign up with email + password (hashed in PolarDB)
+- [ ] **Email/Password Sign In** — Login via NextAuth.js credentials provider
+- [ ] **Forwarding Email Address** — Each user gets a unique address like `user_<id>@emailagent.top`
+- [ ] **Inbound Email Webhook** — Cloudflare Email Router → `/api/inbound` receives forwarded emails
+- [ ] **User Authorization Check** — Verify sender is registered (by email address or domain whitelist)
+- [ ] **Email Classification** — Categorize via `qwen3.6-flash` (Newsletter / Alert / Personal / Promotion / Other)
+- [ ] **Email Summarization** — Generate 2-sentence summary + action items via `qwen3.7-plus`
+- [ ] **Semantic Search Index** — Embed with `text-embedding-v4`, store in PolarDB pgvector
+- [ ] **Inbox Dashboard** — Browse processed emails grouped by category + sender
+- [ ] **HITL Confirmation Queue** — Approve / Reject AI-recommended actions before execution
 
 ### P1 — Bonus
 
-- [ ] Auto-generate Reply Drafts via `qwen3.7-plus`
-- [ ] Auto Label / Archive via Gmail API
-- [ ] Google Calendar Integration via `qwen3.7-max` (parse dates → suggest events)
-- [ ] User-Defined Rules Engine — `qwen3.7-max` evaluates rules against each email
-  - "Always keep emails from school"
-  - "Archive promotions unless discount > 40 %"
-  - "Never send emails without my approval"
-  - "Flag emails related to jobs, invoices, and interviews"
-- [ ] OSS export: move digest JSON from `digest_exports` table → Alibaba Cloud OSS bucket (Phase 2)
+- [ ] **User-Defined Rules Engine** — `qwen3.7-max` evaluates rules against each email
+  - "Always keep emails from {domain}"
+  - "Archive promotional emails automatically"
+  - "Flag emails related to {keywords}"
+- [ ] **Auto-Label / Archive** — Execute approved actions via Gmail API (if user connects Gmail separately)
+- [ ] **Auto-generate Reply Drafts** — `qwen3.7-plus` suggests responses
+- [ ] **Semantic Email Search** — Full-text + vector search across archived emails
+- [ ] **OSS Export** — Move digest JSON from `digest_exports` table → Alibaba Cloud OSS
 
 ### P2 — Advanced / Backlog
 
-- [ ] Auto-unsubscribe suggestions
-- [ ] Multi-user / team inbox support
-- [ ] CRM integration / Slack digest / Quote generation
+- [ ] **Multi-service email support** — Let users connect their own Gmail/Outlook inboxes
+- [ ] **CRM integration** — Link contacts to email senders
+- [ ] **Slack digest export** — Daily summary sent to Slack
+- [ ] **Team / shared inboxes** — Multi-user support
 
 ---
 
@@ -132,51 +145,52 @@ graph TB
 
 ### Phase 1 — Infrastructure & Auth (Day 1)
 
-**Goal:** Authenticated user can log in and their tokens are persisted.
+**Goal:** Users can register/sign in with email & password; each user gets a unique service email address.
 
 - [x] Initialize Next.js 16 project (TypeScript, Tailwind 4, App Router, `src/` dir, Turbopack default)
 - [x] Initialize git repository
 - [x] Add MIT License (`LICENSE` file) — required for hackathon
 - [x] Install and configure shadcn/ui
 - [x] Provision local Docker PostgreSQL + pgvector (mirrors PolarDB; swap connection string for PolarDB in Phase 6)
-- [x] Configure **NextAuth.js v5** with Google provider — request scopes:
-  - `https://mail.google.com/`
-  - `https://www.googleapis.com/auth/calendar`
+- [x] **Configure NextAuth.js v5 with Credentials provider** (NOT Google OAuth):
+  - [x] `src/auth.ts` — Credentials provider with email + password verification via bcryptjs
+  - [x] Session strategy: JWT (required for credentials provider)
 - [x] Run schema (NextAuth tables + application tables — see below)
-- [x] Implement login / logout flow (`src/app/login/page.tsx`)
-- [x] Verify `account.access_token` + `account.refresh_token` are persisted in `accounts` table
+- [x] Implement registration page (`src/app/register/page.tsx`):
+  - [x] Form: email + password + confirm password
+  - [x] Client-side validation + server `POST /api/auth/register`
+  - [x] Hash password (bcrypt cost 12) → insert into DB
+  - [x] Redirect to `/login?registered=1` on success
+- [x] Implement login page (`src/app/login/page.tsx`):
+  - [x] Email/password form using credentials provider
+  - [x] Redirect to `/inbox` on success
+- [x] **Forwarding Email Address** (`src/lib/email/forwarding-address.ts`):
+  - [x] `ensureForwardingAddress(userId)` — idempotent, generates `<prefix>@<INBOUND_DOMAIN>`
+  - [x] Stored in `users.forwarding_address` (unique constraint)
+  - [x] Auto-generated on registration
+- [x] Update `proxy.ts` to protect `/inbox` and `/settings` routes (redirect to `/login`)
+- [x] **`ForwardingInfo` component** (`src/components/settings/ForwardingInfo.tsx`):
+  - [x] Copy-to-clipboard button
+  - [x] Step-by-step instructions for Gmail, Outlook, Apple Mail
+- [x] Updated settings page to show forwarding address (removed old IMAP section)
 
-**Alibaba Cloud PolarDB Schema (single DB — all tables):**
+**Alibaba Cloud PolarDB Schema (single DB — all tables, with changes for email/password auth):**
 
 ```sql
 -- ─── Extensions ────────────────────────────────────────────────────────────
 create extension if not exists vector;   -- semantic search
 create extension if not exists "uuid-ossp";
 
--- ─── NextAuth.js v5 tables (@auth/pg-adapter) ───────────────────────────────
--- These are managed automatically by the adapter; listed here for reference.
+-- ─── NextAuth.js v5 tables (@auth/pg-adapter) ────────────────────────────────
 create table users (
   id uuid primary key default uuid_generate_v4(),
   name text,
-  email text unique,
+  email text unique not null,
   "emailVerified" timestamptz,
-  image text
-);
-
-create table accounts (
-  id uuid primary key default uuid_generate_v4(),
-  "userId" uuid not null references users(id) on delete cascade,
-  type text not null,
-  provider text not null,
-  "providerAccountId" text not null,
-  refresh_token text,
-  access_token text,
-  expires_at bigint,
-  token_type text,
-  scope text,
-  id_token text,
-  session_state text,
-  unique (provider, "providerAccountId")
+  image text,
+  password_hash text,                    -- NEW: bcrypt hash for credentials provider
+  forwarding_address text unique,        -- NEW: unique email for this user (user_<id>@emailagent.top)
+  created_at timestamptz default now()
 );
 
 create table sessions (
@@ -193,128 +207,230 @@ create table verification_tokens (
   primary key (identifier, token)
 );
 
--- ─── Application tables ─────────────────────────────────────────────────────
--- user_id references the NextAuth users table — real FK, same DB, no ghost key
+-- ─── Application tables ──────────────────────────────────────────────────────
 create table email_records (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,
-  gmail_id text not null,
+  message_id text not null,              -- CHANGED: from gmail_id → message_id (Cloudflare email ID)
   subject text,
-  sender text,
-  received_at timestamptz,
+  sender text not null,                  -- email address of person who forwarded to us
+  received_at timestamptz not null,
   category text,
   summary text,
   todos jsonb default '[]',
   recommended_action text check (recommended_action in ('archive','keep','draft_reply')),
   action_status text check (action_status in ('pending','approved','rejected','executed')) default 'pending',
-  raw_snippet text,
-  embedding          vector(1536),    -- text-embedding-v4 output
-  attachment_urls    jsonb       default '[]',  -- Gmail attachment URLs (no OSS in Phase 1)
-  processed_at       timestamptz default now()
+  raw_body text,                         -- email body
+  embedding vector(1536),                -- text-embedding-v4 output
+  attachment_urls jsonb default '[]',    -- file attachments from forwarded email
+  processed_at timestamptz default now()
 );
 
 create index on email_records using hnsw (embedding vector_cosine_ops);
+create index on email_records (user_id);
+create index on email_records (received_at);
 
--- Digest exports stored as JSONB in DB (move to OSS in Phase 2)
+-- Daily digest exports (JSONB payload)
 create table digest_exports (
-  id         uuid  primary key default uuid_generate_v4(),
-  user_id    uuid  not null references users(id) on delete cascade,
-  date       date  not null,
-  payload    jsonb not null,
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  date date not null,
+  payload jsonb not null,
   created_at timestamptz default now(),
   unique (user_id, date)
 );
 
+-- User-defined rules for email filtering
 create table user_rules (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,
   rule_text text not null,
   created_at timestamptz default now()
 );
+
+-- NEW: Authorization whitelist — which senders can forward to each user's address
+create table sender_whitelist (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  sender_email text not null,            -- e.g., "john@company.com"
+  sender_domain text,                    -- e.g., "company.com" (optional, for domain-wide matching)
+  created_at timestamptz default now(),
+  unique (user_id, sender_email)
+);
 ```
 
 ---
 
-### Phase 2 — Core Gmail Tools / MCP (Day 1–2)
+### Phase 2 — Inbound Email Webhook & Parser (Day 2)
 
-**Goal:** Utility layer that reads/writes Gmail, fully decoupled from API routes.
+**Goal:** Emails forwarded to `emailagent.top` are received, parsed, and attributed to the correct user.
 
-- [x] `src/types/email.ts` — `Email`, `EmailAttachment`, `ProcessedEmail` types
-- [x] `src/lib/tokens.ts` — `getGoogleAccessToken(userId)` with automatic refresh
-- [x] `src/lib/mcp/gmail.ts`
-  - [x] `fetchUnreadEmails(accessToken, limit)` → `Email[]` (concurrent with `Promise.all`)
-  - [x] `archiveEmail(accessToken, id)` → stub
-  - [x] `createDraft(accessToken, to, subject, body)` → stub
-- [x] `src/lib/mcp/calendar.ts`
-  - [x] `fetchUpcomingEvents(accessToken)` → stub
-  - [x] `createEvent(accessToken, event)` → stub
-- [x] `src/app/api/process-emails/route.ts` → stub route (Phase 3 adds AI pipeline)
+- [ ] **Cloudflare Email Routing Setup** (outside Next.js, in Cloudflare console):
+  - [ ] Add MX records for `emailagent.top` to Cloudflare
+  - [ ] Create Email Routing rule: `*@emailagent.top` → forwards to a catch-all address
+  - [ ] Set up webhook to send inbound emails as POST to `/api/inbound`
+  
+- [ ] `cloudflare/email-worker.ts` — Cloudflare Worker (deployed separately):
+  - [ ] Receives raw MIME email from Cloudflare Email Routing
+  - [ ] Forwards as HTTP POST to `https://emailagent.top/api/inbound` with raw email body
+  - [ ] Includes signature verification (HMAC-SHA256 using CF_INBOUND_SECRET)
+
+- [ ] `src/lib/email/parser.ts` — Parse raw MIME email:
+  - [ ] Use `mailparser` library to convert MIME buffer → `{ subject, from, to, text, html, attachments }`
+  - [ ] Extract attachments (store URLs only in Phase 1)
+
+- [ ] `src/app/api/inbound/route.ts` — Webhook receiver:
+  - [ ] Validate CF_INBOUND_SECRET via HMAC
+  - [ ] Parse email via `parseMimeEmail()`
+  - [ ] Look up user by forwarding address (extract `user_abc123@emailagent.top` → find user)
+  - [ ] Check sender authorization: is sender in `sender_whitelist` for this user?
+    - If NOT: skip processing, log event
+    - If YES: proceed
+  - [ ] Store raw email in `email_records` (with user_id, sender, subject, body)
+  - [ ] **Enqueue async job** (or call processor directly):
+    - Classify, summarize, embed (Phase 3)
+    - Save pending action to action queue
+  - [ ] Return `200 OK` immediately to Cloudflare
+
+- [ ] `src/lib/email/forwarding-address.ts` — Enhanced:
+  - [ ] Add `getUserByForwardingAddress(address)` — fast lookup for `/api/inbound`
+  - [ ] Add `updateSenderWhitelist(userId, senderEmail)` — auto-trust new senders (or require approval)
+
+**Files to Create:**
+- `cloudflare/email-worker.ts` (deployed to Cloudflare, not part of Next.js build)
+- `src/lib/email/parser.ts`
+- `src/app/api/inbound/route.ts`
+- `src/lib/email/forwarding-address.ts`
 
 ---
 
-### Phase 3 — AI Processing Pipeline (Day 2)
+### Phase 3 — AI Processing Pipeline (Day 2–3)
 
-**Goal:** Each email is classified, summarised, and indexed concurrently using multiple Qwen models.
+**Goal:** Each inbound email is classified, summarized, and indexed concurrently using multiple Qwen models.
 
-- [x] `src/lib/ai/qwen.ts` — shared Qwen client
+- [ ] `src/lib/ai/qwen.ts` — shared Qwen client:
   - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
   - Export three clients: `qwenFlash`, `qwenPlus`, `qwenMax`
-- [x] `src/lib/ai/processor.ts`
-  - `processEmailsBatched(emails, userId, userRules?)` using `Promise.allSettled`
-  - Per email pipeline (Steps 1–3 run concurrently via `Promise.all`):
-    1. **`qwen3.6-flash`** → classify category (fast + cheap)
-    2. **`qwen3.7-plus`** → summarize + extract todos + recommended action
+
+- [ ] `src/lib/ai/processor.ts` — Main processing pipeline:
+  - `processEmailBatch(emailRecords, userId, userRules?)` using `Promise.allSettled`
+  - Per email pipeline (steps 1–4 run concurrently via `Promise.all`):
+    1. **`qwen3.6-flash`** → classify category (Newsletter / Alert / Personal / Promotion / Other)
+    2. **`qwen3.7-plus`** → summarize (≤2 sentences) + extract todos + recommended action
     3. **`text-embedding-v4`** → generate 1536-dim embedding for semantic search
-    4. *(if rules exist)* **`qwen3.7-max`** → evaluate user rules against email
-  - `saveDailyDigest(userId, results)` → upsert JSONB into `digest_exports`
-- [x] Structured output (Zod + `generateObject`) schema:
+    4. *(if rules exist)* **`qwen3.7-max`** → evaluate user rules against email body/sender
+  - Update `email_records` with `(category, summary, todos, recommended_action, embedding, action_status='pending')`
+  - Structured output (Zod schema):
+    ```ts
+    {
+      category: "newsletter" | "alert" | "personal" | "promotion" | "other";
+      summary: string;             // ≤ 2 sentences
+      todos: string[];             // extracted action items
+      recommendedAction: "archive" | "keep" | "draft_reply";
+      ruleMatches?: string[];      // matched user rules (if any)
+    }
+    ```
 
-```ts
-{
-  category: "newsletter" | "alert" | "personal" | "promotion" | "other";
-  summary: string;          // ≤ 2 sentences
-  todos: string[];          // extracted action items
-  recommendedAction: "archive" | "keep" | "draft_reply";
-  ruleMatches?: string[];   // rules triggered (Phase 5)
-}
-```
+- [ ] **Called from `/api/inbound`** after email is stored with raw body
+  - Don't block Cloudflare webhook response — use async job queue or fire-and-forget
+  - Or keep it synchronous if Alibaba Function Compute timeout is generous (it is — up to 24 hours)
 
-- [x] Persist to **PostgreSQL** via `pg` driver (embedding as `::vector`)
-- [x] Store attachment URLs as `jsonb` in `email_records.attachment_urls`
-- [x] Store daily digest as `jsonb` in `digest_exports` table
-- [x] API route: `POST /api/process-emails` (fetches emails → processes → saves digest → returns results)
-
----
-
-### Phase 4 — Frontend Dashboard (Day 3)
-
-**Goal:** Users see their daily digest and can approve/reject AI-recommended actions.
-
-- [x] `src/app/dashboard/page.tsx` — server component with `"use cache"` directive, fetches `email_records` from PolarDB
-- [x] `src/components/digest/DigestSection.tsx` — renders summaries grouped by category
-- [x] `src/components/digest/EmailCard.tsx` — single email card (category badge, summary, todos)
-- [x] `src/components/hitl/ActionQueue.tsx` — lists `pending` records
-- [x] `src/components/hitl/ActionItem.tsx` — shows recommended action + Approve / Reject buttons
-- [x] `src/components/dashboard/TriggerButton.tsx` — client component that calls `/api/process-emails` and refreshes
-- [x] `src/lib/actions/email-actions.ts` — `approveAction` / `rejectAction` server actions with `revalidatePath`
-- [x] API route: `POST /api/actions/approve` and `POST /api/actions/reject`
-  - Update `action_status` in PolarDB
-  - On approve: execute `archiveEmail` or `createDraft`
+**Files to Create/Update:**
+- `src/lib/ai/processor.ts` (refactored from v1 to work with inbound emails)
+- `src/types/email.ts` (if not already done)
 
 ---
 
-### Phase 5 — P1 Features & Rule Engine (Day 4)
+### Phase 4 — Inbox Dashboard & HITL Queue (Day 3)
 
-**Goal:** Users can define natural-language rules; AI respects them at classification time.
+**Goal:** Users see their forwarded emails organized by category with approval/rejection actions.
 
-- [x] `src/app/settings/page.tsx` — textarea to enter / edit rules
-- [x] Save rules to `user_rules` table (PolarDB)
-- [x] Load rules in `processEmailsBatched` and pass to `qwen3.7-max` for evaluation
-- [x] Auto-label / archive execution (real Gmail API calls replacing stubs)
-- [ ] Semantic email search using `text-embedding-v4` + PolarDB pgvector
-- [ ] Google Calendar tool via `qwen3.7-max` (function calling)
-- [ ] Draft reply generation using `qwen3.7-plus`
-- [ ] Daily digest export → move `digest_exports` payload to **Alibaba Cloud OSS** + provision OSS bucket
+- [ ] `src/app/inbox/page.tsx` — server component:
+  - Fetch `email_records` for logged-in user, ordered by `received_at DESC`
+  - Build category counts (newsletter, alert, personal, promotion, other)
+  - Pass to `InboxLayout` client component
+
+- [ ] `src/components/inbox/InboxLayout.tsx` — client wrapper:
+  - Owns category filter state (selected category)
+  - Renders sidebar + email list + email detail panels
+
+- [ ] `src/components/inbox/InboxSidebar.tsx` — category filter:
+  - Show counts: "Newsletters (5)", "Alerts (2)", etc.
+  - Click to filter email list
+
+- [ ] `src/components/inbox/EmailList.tsx` — scrollable email list:
+  - Show preview: from, subject, 1-line summary
+  - Highlight pending actions (yellow badge)
+  - Click to select + show in detail pane
+
+- [ ] `src/components/inbox/EmailDetail.tsx` — reading pane:
+  - Full sender, subject, body, summary, todos
+  - Show category badge
+  - If action is `pending`: show **Approve / Reject buttons**
+    - Approve: execute recommended action (archive, draft reply)
+    - Reject: dismiss action, mark as `rejected`
+
+- [ ] `src/lib/actions/email-actions.ts` — server actions:
+  - `approveAction(emailId)` → update `action_status = 'approved'` → execute (TBD in Phase 5)
+  - `rejectAction(emailId)` → update `action_status = 'rejected'` → revalidate `/inbox`
+
+- [ ] Add to `proxy.ts`: protect `/inbox` route (redirect to `/login`)
+
+**Files to Create:**
+- `src/app/inbox/page.tsx`
+- `src/components/inbox/InboxLayout.tsx`
+- `src/components/inbox/InboxSidebar.tsx`
+- `src/components/inbox/EmailList.tsx`
+- `src/components/inbox/EmailDetail.tsx`
+- `src/lib/actions/email-actions.ts` (new file)
+
+---
+
+### Phase 5 — Settings & User Rules Engine (Day 4)
+
+**Goal:** Users can define natural-language rules and manage sender whitelists.
+
+- [ ] `src/app/settings/page.tsx` — server component:
+  - Show user's forwarding email address: `user_abc123@emailagent.top`
+  - Instructions: "Add this to auto-forward in your email app"
+  - Textarea to enter/edit rules (natural language, e.g., "Archive all newsletters")
+  - List of authorized senders (manage whitelist)
+
+- [ ] `src/components/settings/RulesEditor.tsx` — rule management UI:
+  - Add / edit / delete rules
+  - Save rules to `user_rules` table
+
+- [ ] `src/components/settings/ForwardingInfo.tsx` — NEW:
+  - Display user's unique forwarding address
+  - Copy-to-clipboard button
+  - Show instructions for popular email providers (Gmail, Outlook, Apple Mail)
+
+- [ ] `src/components/settings/SenderWhitelist.tsx` — NEW:
+  - List of approved senders
+  - Add new sender (email or domain)
+  - Remove sender
+
+- [ ] Enhance `/api/inbound` sender authorization:
+  - Check `sender_whitelist` table for sender email
+  - If not in whitelist: reject OR auto-approve first-time senders (configurable)
+  - Log all received emails for user review
+
+- [ ] Enhance `processEmailBatch()`:
+  - Load user rules from `user_rules` table
+  - Pass rules + email body to `qwen3.7-max`
+  - Get back `ruleMatches[]` (which rules triggered)
+  - Store in `email_records` for display in UI
+
+- [ ] *(Bonus)* Add "auto-approve" settings:
+  - "Auto-archive newsletters"
+  - "Auto-keep personal emails from whitelisted senders"
+
+**Files to Update/Create:**
+- `src/app/settings/page.tsx` (rewrite to support new flow)
+- `src/components/settings/RulesEditor.tsx` (update)
+- `src/components/settings/ForwardingInfo.tsx` (new)
+- `src/components/settings/SenderWhitelist.tsx` (new)
+- Update `/api/inbound` for whitelist checks
 
 ---
 
@@ -322,59 +438,118 @@ create table user_rules (
 
 **Goal:** Backend running on Alibaba Cloud with proof for hackathon submission.
 
-- [ ] `Dockerfile` — Next.js `output: standalone` build (already set in `next.config.ts`)
-- [ ] Push image to **Alibaba Cloud ACR** (Container Registry)
-- [ ] Deploy to **Alibaba Cloud Function Compute 3.0** (Custom Container runtime)
-  - Set environment variables (Qwen API key, PolarDB connection string, OSS keys)
-  - Configure HTTP trigger
-- [ ] Verify API endpoints via FC public URL
-- [ ] Create `docs/alibaba-cloud-proof.md` — document deployed FC function URL, OSS bucket, PolarDB endpoint
-- [ ] Record short proof video showing FC console + live API call
+- [ ] **Domain Setup:**
+  - [ ] Add MX records for `emailagent.top` → Cloudflare Email Routing
+  - [ ] Configure Cloudflare Email Routing to forward to worker/webhook
+  - [ ] SSL certificate for `emailagent.top` (free or purchased)
+
+- [ ] **Container Image:**
+  - [ ] Ensure `next.config.ts` has `output: "standalone"`
+  - [ ] Create `Dockerfile` for Next.js standalone deployment
+  - [ ] Build image: `docker build -t email-agent:latest .`
+
+- [ ] **Push to Alibaba Cloud ACR:**
+  - [ ] Create ACR repo in Alibaba Cloud console
+  - [ ] Tag image: `docker tag email-agent:latest <registry>/email-agent:latest`
+  - [ ] Push: `docker push <registry>/email-agent:latest`
+
+- [ ] **Deploy to Function Compute 3.0:**
+  - [ ] Create custom container runtime function
+  - [ ] Set image URI to ACR image
+  - [ ] Environment variables:
+    - `DATABASE_URL=postgresql://...@<polardb-endpoint>:5432/email_agent`
+    - `QWEN_API_KEY=...`
+    - `NEXTAUTH_SECRET=...`
+    - `NEXTAUTH_URL=https://emailagent.top`
+    - `CF_INBOUND_SECRET=...` (shared secret with Cloudflare worker)
+  - [ ] Configure HTTP trigger for public access
+  - [ ] Set timeout to 60+ seconds for email processing
+
+- [ ] **Cloudflare Worker Deployment:**
+  - [ ] Deploy `cloudflare/email-worker.ts` to Cloudflare Workers
+  - [ ] Update webhook URL to point to FC function `/api/inbound`
+  - [ ] Test end-to-end email forwarding
+
+- [ ] **Database Migration:**
+  - [ ] Provision Alibaba Cloud PolarDB cluster (PostgreSQL-compatible)
+  - [ ] Run full schema against PolarDB
+  - [ ] Update `DATABASE_URL` in Function Compute environment
+
+- [ ] **Create `docs/alibaba-cloud-proof.md`:**
+  - Document deployed FC function URL
+  - Include screenshot of FC console showing running function
+  - Include test API call proving `/api/inbound` is live
+  - List PolarDB endpoint + user count
+  - Link to email_agent.top domain
+
+- [ ] *(Bonus)* Record video:
+  - Register new account on deployed site
+  - Show forwarding address
+  - Send test email to service address
+  - Show email appear in inbox dashboard
+  - Show AI classification + summary working
+
+**Files to Create:**
+- `Dockerfile`
+- `cloudflare/email-worker.ts` (if not already deployed)
 
 ---
 
 ## Folder Structure (Target)
 
 ```
+├── cloudflare/
+│   └── email-worker.ts              # Cloudflare Worker for email forwarding
 ├── docs/
 │   └── alibaba-cloud-proof.md
 ├── Dockerfile
 ├── LICENSE
-├── next.config.ts             # output: standalone, turbopack top-level
+├── next.config.ts                   # output: standalone, turbopack top-level
+├── proxy.ts                         # Next.js 16: proxy.ts (not middleware.ts)
+
 src/
 ├── app/
 │   ├── (auth)/
-│   │   └── login/page.tsx
+│   │   ├── login/page.tsx           # Sign in with email/password
+│   │   └── register/page.tsx        # NEW: Sign up with email/password
 │   ├── api/
-│   │   ├── auth/[...nextauth]/route.ts
-│   │   ├── process-emails/route.ts
+│   │   ├── auth/[...nextauth]/route.ts   # NextAuth credentials provider
+│   │   ├── inbound/route.ts              # NEW: Webhook for forwarded emails
 │   │   └── actions/
 │   │       ├── approve/route.ts
 │   │       └── reject/route.ts
-│   ├── dashboard/page.tsx         # "use cache" + cacheTag/cacheLife
-│   ├── settings/page.tsx
+│   ├── inbox/page.tsx               # Main email dashboard
+│   ├── settings/page.tsx            # User settings + forwarding address + rules
 │   ├── layout.tsx
-│   └── page.tsx
+│   └── page.tsx                     # Redirect to /inbox or /login
+
 ├── components/
-│   ├── digest/
-│   │   ├── DigestSection.tsx
-│   │   └── EmailCard.tsx
-│   └── hitl/
-│       ├── ActionQueue.tsx
-│       └── ActionItem.tsx
+│   ├── inbox/
+│   │   ├── InboxLayout.tsx          # Main layout
+│   │   ├── InboxSidebar.tsx         # Category filter
+│   │   ├── EmailList.tsx            # Email list pane
+│   │   └── EmailDetail.tsx          # Reading pane + HITL actions
+│   └── settings/
+│       ├── RulesEditor.tsx          # Rule management
+│       ├── ForwardingInfo.tsx       # NEW: Show forwarding address
+│       └── SenderWhitelist.tsx      # NEW: Manage authorized senders
+
 ├── lib/
 │   ├── ai/
-│   │   ├── qwen.ts
-│   │   └── processor.ts
-│   ├── mcp/
-│   │   ├── gmail.ts
-│   │   └── calendar.ts
-│   ├── oss.ts                    # Phase 2 only — Alibaba Cloud OSS
+│   │   ├── qwen.ts                  # Qwen Cloud clients
+│   │   └── processor.ts             # Email classification pipeline
+│   ├── email/
+│   │   ├── parser.ts                # Parse MIME email
+│   │   └── forwarding-address.ts    # Generate/lookup user addresses
+│   ├── actions/
+│   │   └── email-actions.ts         # Server actions (approve/reject)
+│   ├── oss.ts                       # Alibaba Cloud OSS (Phase 2+)
 │   ├── db.ts
-│   └── auth.ts                    # NextAuth.js v5 config
-├── proxy.ts                       # Next.js 16: proxy.ts (not middleware.ts)
-└── types/
-    └── email.ts
+│   └── auth.ts                      # NextAuth.js v5 with credentials provider
+
+├── types/
+│   ├── email.ts
+│   └── next-auth.d.ts
 ```
 
 ---
@@ -382,49 +557,95 @@ src/
 ## Environment Variables
 
 ```env
-# NextAuth.js v5
-NEXTAUTH_URL=
-NEXTAUTH_SECRET=                  # openssl rand -base64 32
+# ─── NextAuth.js v5 (Credentials Provider) ────────────────────────────────────
+NEXTAUTH_URL=http://localhost:3000                    # Change to domain in production
+NEXTAUTH_SECRET=                                      # openssl rand -base64 32
 
-# Qwen Cloud (International endpoint)
-QWEN_API_KEY=                     # sk-... from home.qwencloud.com/api-keys
+# ─── Qwen Cloud (International endpoint) ──────────────────────────────────────
+QWEN_API_KEY=                                         # sk-... from home.qwencloud.com/api-keys
 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 
-# Alibaba Cloud PolarDB (PostgreSQL-compatible)
-POLARDB_HOST=
-POLARDB_PORT=5432
-POLARDB_DB=email_agent
-POLARDB_USER=
-POLARDB_PASSWORD=
+# ─── PostgreSQL (Local Docker in dev, Alibaba PolarDB in prod) ────────────────
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/email_agent
 
-# Alibaba Cloud OSS — Phase 2 only (skipped in Phase 1)
-# ALIYUN_OSS_REGION=
-# ALIYUN_OSS_BUCKET=email-agent-assets
+# ─── Cloudflare Email Webhook Secret ──────────────────────────────────────────
+CF_INBOUND_SECRET=                                    # Shared secret for HMAC validation (random string)
+
+# ─── Alibaba Cloud (Phase 2+) ────────────────────────────────────────────────
 # ALIYUN_ACCESS_KEY_ID=
 # ALIYUN_ACCESS_KEY_SECRET=
-
-# Google (managed via Supabase OAuth)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+# ALIYUN_OSS_REGION=oss-ap-southeast-1
+# ALIYUN_OSS_BUCKET=email-agent-assets
 ```
 
 ---
 
 ## Next Steps (Start Here)
 
-1. Install shadcn/ui: `npx shadcn@latest init`
-2. Install core deps:
+### Phase 1 Setup (Day 1):
+
+1. **Install dependencies:**
    ```bash
-   npm install next-auth@beta @auth/pg-adapter ai @modelcontextprotocol/sdk pg
-   npm install -D @types/pg
+   npm install bcryptjs mailparser
+   npm install -D @types/mailparser
    ```
-3. Provision Alibaba Cloud PolarDB → run full schema (NextAuth tables + application tables)
-4. Create Alibaba Cloud OSS bucket + RAM user with OSS + FC permissions
-5. Get Qwen Cloud API key from `home.qwencloud.com/api-keys`
-6. Create Google OAuth credentials in Google Cloud Console (set redirect URI to `/api/auth/callback/google`)
-7. Configure `src/lib/auth.ts` with Google provider + `@auth/pg-adapter`
-8. Build login page and verify `accounts` table in PolarDB has `access_token` after login
-9. Proceed to Phase 2
+
+2. **Update `src/auth.ts`:**
+   - Remove Google provider
+   - Add Credentials provider with email/password verification
+   - Password hashing: use `bcryptjs` for secure hashing
+
+3. **Create registration page** (`src/app/register/page.tsx`):
+   - Form: email + password + confirm
+   - Hash password → insert to DB
+   - Validate uniqueness
+
+4. **Create `src/lib/email/forwarding-address.ts`:**
+   - `ensureForwardingAddress(userId)` — generates `user_<short_id>@emailagent.top`
+   - Store in `users.forwarding_address`
+
+5. **Add to database schema:**
+   - Add `password_hash text` column to `users` table
+   - Add `forwarding_address text unique` column to `users` table
+   - Create `sender_whitelist` table for authorization
+
+6. **Update `proxy.ts`:**
+   - Protect `/inbox` and `/settings` routes
+
+7. **Update login page** (`src/app/login/page.tsx`):
+   - Use Credentials provider (email/password form)
+
+8. **Verify locally:**
+   - Register user
+   - Sign in
+   - Check `forwarding_address` is generated and displayed
+
+### Phase 2 Setup (Day 2):
+
+9. **Set up Cloudflare Email Routing** (outside Next.js):
+   - Add MX records for `emailagent.top`
+   - Configure catch-all rule + webhook
+
+10. **Create `src/lib/email/parser.ts`:**
+    - Use `mailparser` to parse MIME → `{ subject, from, to, text, html, attachments }`
+
+11. **Create `/api/inbound` webhook handler:**
+    - Validate CF_INBOUND_SECRET
+    - Parse email
+    - Lookup user by forwarding address
+    - Check sender whitelist
+    - Store in `email_records`
+
+12. **Get Qwen Cloud API key:**
+    - Sign up at [home.qwencloud.com](https://home.qwencloud.com)
+    - Create API key → `QWEN_API_KEY`
+
+### Phase 3+ Setup (Days 2–5):
+
+13. Complete phases 3–6 per PLAN.md above
+14. Deploy to Alibaba Cloud
+15. Update domain DNS + SSL
+16. Record demo video for hackathon submission
 
 ---
 

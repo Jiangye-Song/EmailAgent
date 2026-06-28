@@ -6,7 +6,7 @@ export const proxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const pathname = req.nextUrl.pathname;
 
-  const protectedRoutes = ["/dashboard", "/settings"];
+  const protectedRoutes = ["/inbox", "/settings"];
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r));
 
   if (isProtected && !isLoggedIn) {
@@ -15,5 +15,5 @@ export const proxy = auth((req) => {
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/settings/:path*"],
+  matcher: ["/inbox/:path*", "/settings/:path*"],
 };

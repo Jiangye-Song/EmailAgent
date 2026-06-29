@@ -4,12 +4,17 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Box,
   Chip,
+  IconButton,
   List,
   ListItem,
   ListItemButton,
   Stack,
   Typography,
 } from "@mui/material";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
+import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
+import { toggleStarEmail } from "@/lib/actions/email-actions";
 import type { EmailRecord } from "@/types/db";
 
 const CATEGORY_COLORS: Record<string, "error" | "primary" | "secondary" | "warning" | "default"> = {
@@ -67,28 +72,64 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
             >
               <Stack spacing={0.6} sx={{ width: "100%", minWidth: 0 }}>
                 <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-                  <Typography variant="caption" color="text.primary" sx={{ fontWeight: 700 }} noWrap>
-                {record.sender.split("<")[0].trim() || record.sender}
+                  <Typography
+                    variant="caption"
+                    color="text.primary"
+                    sx={{
+                      fontWeight: record.is_read ? 600 : 800,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                    }}
+                    noWrap
+                  >
+                    {!record.is_read && (
+                      <FiberManualRecordRoundedIcon
+                        sx={{ fontSize: 8, color: "primary.main", flexShrink: 0 }}
+                      />
+                    )}
+                    {record.sender.split("<")[0].trim() || record.sender}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                     {relativeTime}
                   </Typography>
                 </Stack>
-                <Typography variant="body2" noWrap color="text.primary">
+                <Typography
+                  variant="body2"
+                  noWrap
+                  color="text.primary"
+                  sx={{ fontWeight: record.is_read ? 400 : 700 }}
+                >
                   {record.subject}
                 </Typography>
-                <Chip
-                  label={record.category}
-                  color={CATEGORY_COLORS[record.category]}
-                  size="small"
-                  sx={{
-                    alignSelf: "flex-start",
-                    height: 20,
-                    fontSize: 11,
-                    textTransform: "capitalize",
-                    fontWeight: 600,
-                  }}
-                />
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+                  <Chip
+                    label={record.category}
+                    color={CATEGORY_COLORS[record.category]}
+                    size="small"
+                    sx={{
+                      alignSelf: "flex-start",
+                      height: 20,
+                      fontSize: 11,
+                      textTransform: "capitalize",
+                      fontWeight: 600,
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void toggleStarEmail(record.id);
+                    }}
+                    sx={{ color: record.is_starred ? "warning.main" : "text.disabled" }}
+                  >
+                    {record.is_starred ? (
+                      <StarRoundedIcon fontSize="small" />
+                    ) : (
+                      <StarBorderRoundedIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                </Stack>
               </Stack>
             </ListItemButton>
           </ListItem>

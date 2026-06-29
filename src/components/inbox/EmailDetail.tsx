@@ -15,14 +15,22 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
-import { approveAction, rejectAction } from "@/lib/actions/email-actions";
-import type { EmailRecord } from "@/types/db";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
+import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
+import DeleteForeverRoundedIcon from "@mui/icons-material/DeleteForeverRounded";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  markEmailUnread,
+  removeEmail,
+  toggleStarEmail,
+} from "@/lib/actions/email-actions";
+import type { EmailActionButton, EmailRecord } from "@/types/db";
 
 type Props = {
   record: EmailRecord | null;
@@ -95,9 +103,27 @@ function FoldableSection({
   );
 }
 
+function toneToColor(
+  tone: EmailActionButton["tone"],
+): "inherit" | "primary" | "secondary" | "success" | "warning" | "error" {
+  switch (tone) {
+    case "success":
+      return "success";
+    case "warning":
+      return "warning";
+    case "danger":
+      return "error";
+    case "accent":
+      return "secondary";
+    default:
+      return "primary";
+  }
+}
+
 export function EmailDetail({ record, forwardingAddress }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [localRead, setLocalRead] = useState<boolean | null>(null);
+  const [localStarred, setLocalStarred] = useState<boolean | null>(null);
 
   if (!record) {
     return (
@@ -122,33 +148,67 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
     );
   }
 
-  // After the null guard above, record is non-null for the rest of the component.
-  // Capture it in a const so closures below don't see the nullable type.
   const rec = record;
-
-  const status = localStatus ?? rec.action_status;
+  const isRead = localRead ?? rec.is_read;
+  const isStarred = localStarred ?? rec.is_starred;
 
   const mailtoUrl =
     `mailto:${encodeURIComponent(rec.sender)}` +
     `?subject=${encodeURIComponent(`Re: ${rec.subject}`)}` +
     `&body=${encodeURIComponent(rec.draft_body ?? "")}`;
 
-  function handleApprove() {
+  function handleToggleStar() {
     startTransition(async () => {
-      await approveAction(rec.id);
-      setLocalStatus("executed");
+      await toggleStarEmail(rec.id);
+      setLocalStarred((value) => !(value ?? rec.is_starred));
     });
   }
 
-  function handleReject() {
+  function handleMarkUnread() {
     startTransition(async () => {
-      await rejectAction(rec.id);
-      setLocalStatus("rejected");
+      await markEmailUnread(rec.id);
+      setLocalRead(false);
     });
+  }
+
+  function handleRemove() {
+    if (!window.confirm("Remove this email permanently? This cannot be undone.")) {
+      return;
+    }
+
+    startTransition(async () => {
+      await removeEmail(rec.id);
+      setLocalRead(true);
+    });
+  }
+
+  function runButtonAction(action: EmailActionButton) {
+    if (action.kind === "star") {
+      handleToggleStar();
+      return;
+    }
+
+    if (action.kind === "remove") {
+      handleRemove();
+      return;
+    }
+
+    if (action.kind === "reply") {
+      window.open(mailtoUrl, "_self");
+      return;
+    }
+
+    if (action.kind === "url" && action.href) {
+      window.open(action.href, "_blank", "noopener,noreferrer");
+    }
   }
 
   const hasCalendar =
     Array.isArray(rec.calendar_events) && rec.calendar_events.length > 0;
+
+  const actionButtons = Array.isArray(rec.action_buttons)
+    ? rec.action_buttons
+    : [];
 
   return (
     <Stack sx={{ height: "100%", minWidth: 0 }}>
@@ -160,7 +220,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           borderColor: "divider",
         }}
       >
-        <Typography variant="h6" sx={{ mb: 0.75 }}>
+        <Typography variant="h6" sx={{ mb: 0.75, fontWeight: isRead ? 600 : 800 }}>
           {rec.subject}
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
@@ -183,6 +243,8 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             size="small"
             sx={{ textTransform: "capitalize" }}
           />
+          {isStarred && <Chip label="Starred" size="small" color="warning" />}
+          {!isRead && <Chip label="Unread" size="small" color="primary" />}
         </Stack>
       </Box>
 
@@ -199,43 +261,43 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           bgcolor: "background.paper",
         }}
       >
-        {status === "pending" ? (
-          <>
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={<CheckCircleRoundedIcon fontSize="small" />}
-              onClick={handleApprove}
-              disabled={isPending}
-            >
-              Approve
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<CancelRoundedIcon fontSize="small" />}
-              onClick={handleReject}
-              disabled={isPending}
-            >
-              Reject
-            </Button>
-          </>
-        ) : (
-          <Chip
-            label={status}
-            size="small"
-            color={
-              status === "executed"
-                ? "success"
-                : status === "rejected"
-                  ? "error"
-                  : "default"
-            }
-            sx={{ textTransform: "capitalize" }}
-          />
-        )}
+        <Button
+          variant={isStarred ? "contained" : "outlined"}
+          color="warning"
+          size="small"
+          startIcon={
+            isStarred ? (
+              <StarRoundedIcon fontSize="small" />
+            ) : (
+              <StarBorderRoundedIcon fontSize="small" />
+            )
+          }
+          onClick={handleToggleStar}
+          disabled={isPending}
+        >
+          {isStarred ? "Unstar" : "Star"}
+        </Button>
+
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<MarkEmailUnreadRoundedIcon fontSize="small" />}
+          onClick={handleMarkUnread}
+          disabled={isPending}
+        >
+          Mark Unread
+        </Button>
+
+        <Button
+          variant="outlined"
+          color="error"
+          size="small"
+          startIcon={<DeleteForeverRoundedIcon fontSize="small" />}
+          onClick={handleRemove}
+          disabled={isPending}
+        >
+          Remove
+        </Button>
 
         <Button
           component="a"
@@ -268,8 +330,20 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
             titleColor="primary.main"
             borderColor="primary.main"
           >
-            <Box sx={{ p: 2 }}>
-              <Typography variant="body2">{rec.summary}</Typography>
+            <Box
+              sx={{
+                p: 2,
+                fontSize: 14,
+                lineHeight: 1.7,
+                "& p": { m: 0, mb: 1 },
+                "& p:last-child": { mb: 0 },
+                "& ul, & ol": { mt: 0.5, mb: 1, pl: 2.5 },
+                "& a": { color: "primary.main" },
+              }}
+            >
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {rec.summary || "No summary available."}
+              </ReactMarkdown>
             </Box>
           </FoldableSection>
 
@@ -279,17 +353,66 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
               titleColor="warning.main"
               borderColor="warning.main"
             >
-              <Box sx={{ p: 2 }}>
-                <List dense disablePadding>
-                  {rec.todos.map((todo, i) => (
-                    <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
-                      <ListItemText
-                        primary={`• ${todo}`}
-                        slotProps={{ primary: { variant: "body2" } }}
-                      />
-                    </ListItem>
+              <Box
+                sx={{
+                  p: 2,
+                  fontSize: 14,
+                  lineHeight: 1.7,
+                  "& p": { m: 0, mb: 0.5 },
+                  "& ul, & ol": { mt: 0.5, mb: 1, pl: 2.5 },
+                  "& a": { color: "primary.main" },
+                }}
+              >
+                {rec.todos.map((todo, i) => (
+                  <Box key={i} sx={{ mb: 1.25 }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {`- ${todo}`}
+                    </ReactMarkdown>
+                  </Box>
+                ))}
+
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mt: 1 }}>
+                  {actionButtons.map((action, index) => (
+                    <Button
+                      key={`${action.kind}-${index}`}
+                      size="small"
+                      variant="contained"
+                      color={toneToColor(action.tone)}
+                      onClick={() => runButtonAction(action)}
+                      disabled={isPending || (action.kind === "url" && !action.href)}
+                    >
+                      {action.label}
+                    </Button>
                   ))}
-                </List>
+
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    onClick={handleToggleStar}
+                    disabled={isPending}
+                  >
+                    {isStarred ? "Unstar" : "Star"}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    onClick={handleRemove}
+                    disabled={isPending}
+                  >
+                    Remove
+                  </Button>
+                  <Button
+                    component="a"
+                    href={mailtoUrl}
+                    size="small"
+                    variant="outlined"
+                    disabled={isPending}
+                  >
+                    Reply
+                  </Button>
+                </Stack>
               </Box>
             </FoldableSection>
           )}
@@ -396,7 +519,7 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           )}
 
           {isPending && (
-            <Alert severity="info">Updating action status...</Alert>
+            <Alert severity="info">Updating email...</Alert>
           )}
         </Stack>
       </Box>

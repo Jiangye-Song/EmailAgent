@@ -2,7 +2,13 @@ import { generateObject, embed } from "ai";
 import { z } from "zod";
 import { qwenFlash, qwenPlus, qwenMax, qwenEmbedding } from "@/lib/ai/qwen";
 import { pool } from "@/lib/db";
-import type { Email, ProcessedEmail, EmailCategory, RecommendedAction } from "@/types/email";
+import type {
+  Email,
+  ProcessedEmail,
+  EmailCategory,
+  RecommendedAction,
+  ProcessedActionButton,
+} from "@/types/email";
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -14,6 +20,47 @@ const CategorySchema = z.enum([
   "other",
 ]);
 
+function normalizeButtonTone(
+  tone: string | undefined,
+): ProcessedActionButton["tone"] | undefined {
+  if (!tone) return undefined;
+
+  const value = tone.toLowerCase();
+  if (value === "default") return "default";
+  if (value === "success") return "success";
+  if (value === "warning") return "warning";
+  if (value === "danger") return "danger";
+  if (value === "accent") return "accent";
+
+  // Common model aliases to keep schema validation permissive.
+  if (value === "primary") return "accent";
+  if (value === "secondary") return "accent";
+  if (value === "error") return "danger";
+
+  return "default";
+}
+
+function normalizeButtonKind(
+  kind: string | undefined,
+): ProcessedActionButton["kind"] {
+  const value = (kind ?? "").toLowerCase();
+
+  if (value === "url") return "url";
+  if (value === "star") return "star";
+  if (value === "remove") return "remove";
+  if (value === "reply") return "reply";
+
+  // Common model aliases.
+  if (value === "button") return "url";
+  if (value === "link") return "url";
+  if (value === "open") return "url";
+  if (value === "delete") return "remove";
+  if (value === "trash") return "remove";
+  if (value === "mail") return "reply";
+
+  return "url";
+}
+
 const AnalysisSchema = z.object({
   summary: z
     .string()
@@ -21,6 +68,20 @@ const AnalysisSchema = z.object({
   todos: z
     .array(z.string())
     .describe("Concrete action items the recipient needs to do"),
+  actionButtons: z
+    .array(
+      z.object({
+        label: z.string().catch("Open"),
+        kind: z.string().optional().transform((kind) => normalizeButtonKind(kind)),
+        href: z.string().optional(),
+        tone: z
+          .string()
+          .optional()
+          .transform((tone) => normalizeButtonTone(tone)),
+      }),
+    )
+    .optional()
+    .describe("Optional structured actions the UI can render as buttons"),
   recommendedAction: z
     .enum(["archive", "keep", "draft_reply"])
     .describe(
@@ -41,6 +102,10 @@ async function processOneEmail(
   userId: string,
   userRules: string[],
 ): Promise<ProcessedEmail> {
+  const urlMatches = Array.from(
+    new Set(email.body.match(/https?:\/\/[^\s)\]]+/g) ?? []),
+  ).slice(0, 3);
+
   // Truncate body to avoid token limits — first 3 000 chars is plenty for classification
   const emailText = [
     `Subject: ${email.subject}`,
@@ -68,10 +133,13 @@ async function processOneEmail(
       schema: AnalysisSchema,
       system:
         'Analyse the email. Return JSON with exactly these fields:\n' +
-        '- "summary": string — max 2 sentences describing what the email is about\n' +
-        '- "todos": string[] — concrete action items for the recipient, empty array if none\n' +
+        '- "summary": string — markdown allowed, max 2 sentences describing what the email is about\n' +
+        '- "todos": string[] — markdown allowed action items, empty array if none\n' +
+        '- "actionButtons": optional array of structured actions using { label, kind, href?, tone? }\n' +
+        '  tone must be one of: default, success, warning, danger, accent\n' +
         '- "recommendedAction": must be exactly one of "archive", "keep", or "draft_reply"\n' +
-        '  archive = no action needed | keep = important to retain | draft_reply = needs a response',
+        '  archive = no action needed | keep = important to retain | draft_reply = needs a response\n' +
+        'Prefer URL buttons when clear CTA links exist in the email.',
       prompt: emailText,
     }),
 
@@ -110,6 +178,15 @@ async function processOneEmail(
     category: classifyResult.object.category as EmailCategory,
     summary: analysisResult.object.summary,
     todos: analysisResult.object.todos,
+    actionButtons: [
+      ...(analysisResult.object.actionButtons ?? []),
+      ...urlMatches.map<ProcessedActionButton>((href, index) => ({
+        label: index === 0 ? "Open Link" : `Open Link ${index + 1}`,
+        kind: "url",
+        href,
+        tone: "accent",
+      })),
+    ],
     recommendedAction: analysisResult.object
       .recommendedAction as RecommendedAction,
     ruleMatches: ruleMatches.length > 0 ? ruleMatches : undefined,
@@ -121,9 +198,9 @@ async function processOneEmail(
   await pool.query(
     `INSERT INTO email_records (
        user_id, message_id, subject, sender, received_at,
-       category, summary, todos, recommended_action,
+       category, summary, todos, action_buttons, recommended_action,
        raw_body, embedding, attachment_urls
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector, $12)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
      ON CONFLICT DO NOTHING`,
     [
       userId,
@@ -134,6 +211,7 @@ async function processOneEmail(
       processed.category,
       processed.summary,
       JSON.stringify(processed.todos),
+      JSON.stringify(processed.actionButtons ?? []),
       processed.recommendedAction,
       email.body,
       vectorLiteral,

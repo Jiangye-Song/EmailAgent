@@ -34,9 +34,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing X-Recipient" }, { status: 400 });
   }
 
+  console.log(`[inbound] recipient header: "${recipient}"`);
+
   const user = await getUserByForwardingAddress(recipient);
   if (!user) {
-    return NextResponse.json({ error: "Unknown recipient" }, { status: 404 });
+    console.log(`[inbound] 202 — unknown recipient skipped: "${recipient}"`);
+    // Don't hard-fail unknown recipients; providers may still route stale forwarding targets.
+    return NextResponse.json(
+      { ok: true, skipped: "unknown_recipient" },
+      { status: 202 },
+    );
   }
   const userId = user.id;
 

@@ -19,9 +19,11 @@ import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import SellRoundedIcon from "@mui/icons-material/SellRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ArchiveRoundedIcon from "@mui/icons-material/ArchiveRounded";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
 
 const CATEGORIES = [
   { key: "all", label: "All", icon: MailRoundedIcon },
+  { key: "starred", label: "Starred", icon: StarRoundedIcon },
   { key: "alert", label: "Alerts", icon: NotificationsActiveRoundedIcon },
   { key: "personal", label: "Personal", icon: PersonRoundedIcon },
   { key: "newsletter", label: "Newsletter", icon: SellRoundedIcon },

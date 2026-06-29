@@ -8,7 +8,8 @@ import type { EmailRecord } from "@/types/db";
 async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
   const { rows } = await pool.query<EmailRecord>(
     `SELECT id, message_id, subject, sender, received_at, category, summary,
-            todos, recommended_action, action_status, raw_body,
+            todos, action_buttons, is_read, is_starred,
+            recommended_action, action_status, raw_body,
             draft_body, calendar_events, processed_at
      FROM email_records
      WHERE user_id = $1
@@ -20,8 +21,12 @@ async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
 }
 
 function buildCategoryCounts(records: EmailRecord[]): Record<string, number> {
-  const counts: Record<string, number> = { all: records.length };
-  for (const r of records) {
+  const unread = records.filter((record) => !record.is_read);
+  const counts: Record<string, number> = {
+    all: unread.length,
+    starred: unread.filter((record) => record.is_starred).length,
+  };
+  for (const r of unread) {
     counts[r.category] = (counts[r.category] ?? 0) + 1;
   }
   return counts;

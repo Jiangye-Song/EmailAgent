@@ -7,6 +7,13 @@ export type CalendarEvent = {
   location?: string;
 };
 
+export type EmailActionButton = {
+  label: string;
+  kind: "url" | "star" | "remove" | "reply";
+  href?: string;
+  tone?: "default" | "success" | "warning" | "danger" | "accent";
+};
+
 // ─── DB row type returned by email_records queries ───────────────────────────
 export type EmailRecord = {
   id: string;
@@ -17,6 +24,9 @@ export type EmailRecord = {
   category: "newsletter" | "alert" | "personal" | "promotion" | "other";
   summary: string;
   todos: string[];
+  action_buttons?: EmailActionButton[];
+  is_read: boolean;
+  is_starred: boolean;
   recommended_action: "archive" | "keep" | "draft_reply";
   action_status: "pending" | "approved" | "rejected" | "executed";
   raw_body: string | null;

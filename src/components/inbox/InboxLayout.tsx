@@ -21,6 +21,7 @@ import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { EmailList } from "@/components/inbox/EmailList";
 import { EmailDetail } from "@/components/inbox/EmailDetail";
+import { markEmailRead } from "@/lib/actions/email-actions";
 import type { EmailRecord } from "@/types/db";
 
 type Props = {
@@ -40,7 +41,9 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
   const filtered =
     selectedCategory === "all"
       ? records
-      : records.filter((r) => r.category === selectedCategory);
+      : selectedCategory === "starred"
+        ? records.filter((r) => r.is_starred)
+        : records.filter((r) => r.category === selectedCategory);
 
   const selectedRecord = records.find((r) => r.id === selectedId) ?? null;
   const sideWidth = 220;
@@ -126,7 +129,18 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
             overflow: "hidden",
           }}
         >
-          <EmailList records={filtered} selectedId={selectedId} onSelect={setSelectedId} />
+          <EmailList
+            records={filtered}
+            selectedId={selectedId}
+            onSelect={(id) => {
+              const selected = records.find((r) => r.id === id);
+              setSelectedId(id);
+
+              if (selected && !selected.is_read) {
+                void markEmailRead(id);
+              }
+            }}
+          />
         </Box>
 
         <Box sx={{ flex: 1, minWidth: 0, bgcolor: "background.default" }}>

@@ -56,6 +56,9 @@ create table if not exists email_records (
   category           text,
   summary            text,
   todos              jsonb       default '[]',
+  action_buttons     jsonb       default '[]',
+  is_read            boolean     not null default false,
+  is_starred         boolean     not null default false,
   recommended_action text        check (recommended_action in ('archive','keep','draft_reply')),
   action_status      text        check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_body           text,                             -- full plain-text body of the forwarded email

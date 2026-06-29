@@ -33,6 +33,13 @@ export type EmailCategory =
 
 export type RecommendedAction = "archive" | "keep" | "draft_reply";
 
+export type ProcessedActionButton = {
+  label: string;
+  kind: "url" | "star" | "remove" | "reply";
+  href?: string;
+  tone?: "default" | "success" | "warning" | "danger" | "accent";
+};
+
 export type ProcessedEmail = {
   emailId: string;
   category: EmailCategory;
@@ -40,6 +47,8 @@ export type ProcessedEmail = {
   summary: string;
   /** Extracted action items */
   todos: string[];
+  /** Optional, structured actions that can be rendered as buttons */
+  actionButtons?: ProcessedActionButton[];
   recommendedAction: RecommendedAction;
   /** User rules triggered */
   ruleMatches?: string[];

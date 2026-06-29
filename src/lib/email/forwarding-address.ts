@@ -52,9 +52,20 @@ export async function ensureForwardingAddress(userId: string): Promise<string> {
 }
 
 export async function getUserByForwardingAddress(address: string): Promise<{ id: string } | null> {
+  const extracted = extractEmailAddress(address);
+  const normalized = normalizeAddress(address);
+  const candidates = Array.from(
+    new Set([...(extracted ? [extracted] : []), normalized]),
+  );
+
+  if (candidates.length === 0) return null;
+
   const { rows } = await pool.query<{ id: string }>(
-    `SELECT id FROM users WHERE forwarding_address = $1`,
-    [normalizeAddress(address)],
+    `SELECT id
+     FROM users
+     WHERE forwarding_address = ANY($1::text[])
+     LIMIT 1`,
+    [candidates],
   );
 
   return rows[0] ?? null;

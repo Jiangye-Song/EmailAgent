@@ -133,13 +133,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Testing inbound emails locally
 
-You can POST a raw email directly to the `/api/inbound` endpoint to test the full AI pipeline without Cloudflare:
+There are two options: a quick `curl` test, or a full end-to-end flow via a Cloudflare Tunnel.
+
+### Option A — Direct curl (no Cloudflare needed)
+
+POST a raw email directly to your local dev server:
 
 ```bash
-# Replace values with your own
 curl -X POST http://localhost:3000/api/inbound \
   -H "Content-Type: message/rfc822" \
-  -H "X-CF-Secret: <your CF_INBOUND_SECRET>" \
+  -H "X-CF-Secret: <your CF_INBOUND_SECRET from .env.local>" \
   -H "X-Recipient: <your forwarding address e.g. abc12345@emailagent.top>" \
   --data-binary @- <<'EOF'
 From: sender@example.com
@@ -154,6 +157,70 @@ EOF
 ```
 
 A successful response looks like `{"ok":true,"processed":1}` and the email will appear in your inbox dashboard.
+
+### Option B — Real email forwarding via Cloudflare Tunnel
+
+This option lets you use actual Gmail auto-forwarding so real emails hit your local app.
+
+**Prerequisites:** [Cloudflare account](https://cloudflare.com), domain on Cloudflare DNS, `wrangler` and `cloudflared` CLI tools installed.
+
+#### 1. Install CLIs
+
+```powershell
+pnpm add -g wrangler
+winget install Cloudflare.cloudflared
+```
+
+#### 2. Create a persistent tunnel
+
+```powershell
+cloudflared tunnel login
+cloudflared tunnel create emailagent-dev
+
+# Route a subdomain to the tunnel (uses your Cloudflare-managed domain)
+cd cloudflare
+cloudflared tunnel route dns emailagent-dev dev.emailagent.top
+```
+
+#### 3. Start the tunnel (run alongside `pnpm dev`)
+
+```powershell
+cloudflared tunnel run --url http://localhost:3000 emailagent-dev
+```
+
+Your local app is now reachable at `https://dev.emailagent.top`.
+
+#### 4. Deploy the Cloudflare Email Worker
+
+```powershell
+cd cloudflare
+
+# Set the shared secret (must match CF_INBOUND_SECRET in .env.local)
+wrangler secret put CF_INBOUND_SECRET
+# → type your secret value when prompted
+
+# Deploy the worker
+wrangler deploy
+```
+
+The `INBOUND_URL` in `cloudflare/wrangler.toml` should be `https://dev.emailagent.top/api/inbound`. Update it if needed and re-run `wrangler deploy`.
+
+#### 5. Set up Cloudflare Email Routing
+
+In the [Cloudflare dashboard](https://dash.cloudflare.com) for your domain:
+
+1. Go to **Email → Email Routing → Get started** — this auto-adds MX records
+2. Go to **Routing Rules → Catch-all** → set action to **Send to Worker** → select `email-agent-worker`
+3. Save
+
+#### 6. Configure Gmail auto-forward
+
+1. In Gmail → **Settings (⚙) → See all settings → Forwarding and POP/IMAP**
+2. Click **Add a forwarding address** → enter your address from the Settings page (e.g. `abc12345@emailagent.top`)
+3. Confirm the verification email that arrives in your inbox dashboard
+4. Set **Forward a copy of incoming mail** and save
+
+Send yourself a test email — it should appear in your local inbox dashboard within seconds.
 
 ---
 
@@ -248,19 +315,9 @@ docker compose down -v && docker compose up -d
 All `generateObject` prompts must include the word "JSON". This is already handled in `src/lib/ai/processor.ts`.
 
 
-**Gmail returns 401**
-Your access token has expired and refresh failed. Sign out and sign back in to get a fresh token.
-
 **Docker container not starting**
 Ensure Docker Desktop is running, then:
 ```bash
 docker compose down -v
 docker compose up -d
 ```
-
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

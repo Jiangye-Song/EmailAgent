@@ -377,11 +377,34 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
                       key={`${action.kind}-${index}`}
                       size="small"
                       variant="contained"
-                      color={toneToColor(action.tone)}
+                      color={
+                        action.kind === "star"
+                          ? "warning"
+                          : action.kind === "remove"
+                            ? "error"
+                            : action.kind === "reply"
+                              ? "primary"
+                              : toneToColor(action.tone)
+                      }
+                      startIcon={
+                        action.kind === "star" ? (
+                          <StarRoundedIcon fontSize="small" />
+                        ) : action.kind === "remove" ? (
+                          <DeleteForeverRoundedIcon fontSize="small" />
+                        ) : action.kind === "reply" ? (
+                          <ReplyRoundedIcon fontSize="small" />
+                        ) : undefined
+                      }
                       onClick={() => runButtonAction(action)}
                       disabled={isPending || (action.kind === "url" && !action.href)}
                     >
-                      {action.label}
+                      {action.kind === "star"
+                        ? "Star"
+                        : action.kind === "remove"
+                          ? "Remove"
+                          : action.kind === "reply"
+                            ? "Reply"
+                            : action.label}
                     </Button>
                   ))}
 

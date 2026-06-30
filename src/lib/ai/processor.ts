@@ -40,25 +40,59 @@ function normalizeButtonTone(
   return "default";
 }
 
-function normalizeButtonKind(
-  kind: string | undefined,
-): ProcessedActionButton["kind"] {
-  const value = (kind ?? "").toLowerCase();
+type RawActionButton = {
+  actionLabel?: string;
+  actionLink?: string;
+  actionColor?: string;
+  label?: string;
+  href?: string;
+  tone?: string;
+  kind?: string;
+};
 
-  if (value === "url") return "url";
+function normalizeActionLinkToKind(
+  actionLink: string,
+): ProcessedActionButton["kind"] {
+  const value = actionLink.trim().toLowerCase();
   if (value === "star") return "star";
   if (value === "remove") return "remove";
   if (value === "reply") return "reply";
-
-  // Common model aliases.
-  if (value === "button") return "url";
-  if (value === "link") return "url";
-  if (value === "open") return "url";
-  if (value === "delete") return "remove";
-  if (value === "trash") return "remove";
-  if (value === "mail") return "reply";
-
   return "url";
+}
+
+function normalizeActionButtons(rawButtons: RawActionButton[]): ProcessedActionButton[] {
+  const buttons: ProcessedActionButton[] = [];
+
+  for (const raw of rawButtons) {
+    const actionLink = (raw.actionLink ?? raw.href ?? "").trim();
+    if (!actionLink) continue;
+
+    const kind = normalizeActionLinkToKind(actionLink);
+
+    if (kind === "star") {
+      buttons.push({ label: "Star", kind: "star", tone: "warning" });
+      continue;
+    }
+
+    if (kind === "remove") {
+      buttons.push({ label: "Remove", kind: "remove", tone: "danger" });
+      continue;
+    }
+
+    if (kind === "reply") {
+      buttons.push({ label: "Reply", kind: "reply", tone: "accent" });
+      continue;
+    }
+
+    buttons.push({
+      label: (raw.actionLabel ?? raw.label ?? "Open Link").trim() || "Open Link",
+      kind: "url",
+      href: actionLink,
+      tone: normalizeButtonTone(raw.actionColor ?? raw.tone),
+    });
+  }
+
+  return buttons;
 }
 
 const AnalysisSchema = z.object({
@@ -71,17 +105,24 @@ const AnalysisSchema = z.object({
   actionButtons: z
     .array(
       z.object({
-        label: z.string().catch("Open"),
-        kind: z.string().optional().transform((kind) => normalizeButtonKind(kind)),
+        actionLabel: z.string().optional(),
+        actionLink: z.string().optional(),
+        actionColor: z.string().optional(),
+        // Backward-compatible keys from previous prompt versions.
+        label: z.string().optional(),
         href: z.string().optional(),
-        tone: z
-          .string()
-          .optional()
-          .transform((tone) => normalizeButtonTone(tone)),
-      }),
+        tone: z.string().optional(),
+        kind: z.string().optional(),
+      }).transform((button) => ({
+        ...button,
+        actionLink: button.actionLink ?? button.href ?? button.kind,
+      })),
     )
     .optional()
-    .describe("Optional structured actions the UI can render as buttons"),
+    .transform((buttons) => normalizeActionButtons((buttons ?? []) as RawActionButton[]))
+    .describe(
+      "Optional structured actions. Each item should include actionLabel, actionLink, actionColor.",
+    ),
   recommendedAction: z
     .enum(["archive", "keep", "draft_reply"])
     .describe(
@@ -135,8 +176,11 @@ async function processOneEmail(
         'Analyse the email. Return JSON with exactly these fields:\n' +
         '- "summary": string — markdown allowed, max 2 sentences describing what the email is about\n' +
         '- "todos": string[] — markdown allowed action items, empty array if none\n' +
-        '- "actionButtons": optional array of structured actions using { label, kind, href?, tone? }\n' +
-        '  tone must be one of: default, success, warning, danger, accent\n' +
+        '- "actionButtons": optional array. Each item should provide exactly:\n' +
+        '  - "actionLabel": text label for button\n' +
+        '  - "actionLink": URL or one of the exact action tokens: star, remove, reply\n' +
+        '  - "actionColor": style hint like default, success, warning, danger, accent\n' +
+        'If actionLink is star/remove/reply, do not invent URLs.\n' +
         '- "recommendedAction": must be exactly one of "archive", "keep", or "draft_reply"\n' +
         '  archive = no action needed | keep = important to retain | draft_reply = needs a response\n' +
         'Prefer URL buttons when clear CTA links exist in the email.',

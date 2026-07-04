@@ -1,52 +1,57 @@
 # Alibaba Cloud Deployment Proof
 
-This document demonstrates that the Email Digest Agent backend is running on Alibaba Cloud.
+## Status
 
-## Services Used
+Pending deployment — local container build verified.
 
-| Service | Purpose | Region |
-|---|---|---|
-| **Function Compute 3.0** | Hosts the Next.js API routes (standalone container) | ap-southeast-1 (Singapore) |
-| **PolarDB for PostgreSQL** | Single DB — auth sessions, OAuth tokens, email records, user rules | ap-southeast-1 |
-| **OSS (Object Storage)** | Stores digest exports and email attachments | oss-ap-southeast-1 |
-| **ACR (Container Registry)** | Stores the Docker image for Function Compute | ap-southeast-1 |
+## Target Architecture
 
-## Function Compute Endpoint
+- **Region:** cn-hangzhou (or as selected)
+- **Container Registry:** Alibaba Cloud ACR Personal Edition
+- **Runtime:** Alibaba Cloud Function Compute (custom container web function)
+- **Database:** PolarDB PostgreSQL compatible
 
-> **TODO:** Replace with actual deployed URL after deployment.
-
-```
-https://<account-id>.<region>.fc.aliyuncs.com/2016-08-15/proxy/<service>/<function>/
-```
-
-## Live API Call Proof
-
-Below is an example `curl` call to the deployed Function Compute endpoint proving the backend is live on Alibaba Cloud:
+## Image Build
 
 ```bash
-# Replace <FC_URL> with the actual Function Compute HTTP trigger URL
-curl -X POST https://<FC_URL>/api/process-emails \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"limit": 5}'
+docker build --platform linux/amd64 -t email-agent:demo .
 ```
 
-## OSS Bucket
+## Environment Variables Required
 
-- **Bucket name:** `email-agent-assets`
-- **Region:** `oss-ap-southeast-1`
-- **Usage:** Daily digest JSON exports are written here by `src/lib/oss.ts`
+See `.env.local.example` for required variables:
+- `DATABASE_URL` — PolarDB connection string
+- `NEXTAUTH_SECRET` — Auth.js secret
+- `NEXTAUTH_URL` — Public deployment URL
+- `QWEN_API_KEY` — Qwen Cloud API key
+- `CF_INBOUND_SECRET` — Shared secret with Cloudflare Email Worker
+- `JOB_RUNNER_SECRET` — Job runner Bearer token
+- `DEMO_REPLAY_SECRET` — Demo replay Bearer token
+- `VAPID_*` — Optional web push configuration
 
-## Code References
+## Database Migration
 
-- `src/lib/oss.ts` — Alibaba Cloud OSS upload/download using `ali-oss` SDK
-- `src/lib/db.ts` — PolarDB PostgreSQL connection via `pg` driver
-- `Dockerfile` — Container image deployed to Alibaba Cloud Function Compute
-- `.github/workflows/deploy.yml` *(planned)* — CI/CD push to ACR + FC deploy
+Run against PolarDB after provisioning:
 
-## Proof Recording
+```bash
+psql $DATABASE_URL -f scripts/db/schema.sql
+psql $DATABASE_URL -f scripts/db/2026-07-04-opportunity-autopilot.sql
+```
 
-> **TODO:** Add link to screen recording showing:
-> 1. Alibaba Cloud Function Compute console with running function
-> 2. Live HTTP request hitting the FC endpoint
-> 3. PolarDB console showing data written by the function
+## Deployment Steps (to be completed)
+
+- [ ] Create ACR Personal Edition namespace and repository
+- [ ] Push AMD64 image: `docker push <acr-registry>/emailagent/email-agent:demo`
+- [ ] Create PolarDB PostgreSQL in same VPC
+- [ ] Run migrations
+- [ ] Create Function Compute custom-container web function
+- [ ] Configure environment variables as runtime secrets
+- [ ] Set up 1-minute FC timer → POST /api/jobs/process-email
+- [ ] Set up daily FC timer → POST /api/jobs/send-digest
+
+## Verification (to be completed after deployment)
+
+- [ ] Public URL returns 200 at /api/health
+- [ ] /login page loads
+- [ ] Demo replay endpoint responds correctly
+- [ ] Inbound email processing works end-to-end

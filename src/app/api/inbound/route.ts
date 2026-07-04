@@ -1,89 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
-import { pool } from "@/lib/db";
+import { timingSafeEqual } from "node:crypto";
 import { parseMimeEmail } from "@/lib/email/parser";
 import {
   getUserByForwardingAddress,
   isSenderWhitelisted,
 } from "@/lib/email/forwarding-address";
-import { processEmailsBatched } from "@/lib/ai/processor";
-import { sendPushNotification } from "@/lib/push/notify";
+import {
+  enqueueInboundEmail,
+  computeContentHash,
+} from "@/lib/jobs/email-jobs";
+
+const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function validateSecret(incoming: string): boolean {
   const expected = process.env.CF_INBOUND_SECRET ?? "";
   if (!incoming || incoming.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(incoming), Buffer.from(expected));
+  try {
+    return timingSafeEqual(Buffer.from(incoming), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
-  // ── Debug ─────────────────────────────────────────────────────────────────
-  const incoming = req.headers.get("x-cf-secret") ?? "(none)";
-  const expected = process.env.CF_INBOUND_SECRET ?? "(not set)";
-  console.log(`[inbound] POST reached — secret header: "${incoming.slice(0, 6)}…" expected length: ${expected.length}`);
-
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const secret = req.headers.get("x-cf-secret") ?? "";
   if (!validateSecret(secret)) {
-    console.log(`[inbound] 401 — secret mismatch (incoming.length=${secret.length}, expected.length=${expected.length})`);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Recipient lookup ──────────────────────────────────────────────────────
   const recipient = req.headers.get("x-recipient") ?? "";
   if (!recipient) {
     return NextResponse.json({ error: "Missing X-Recipient" }, { status: 400 });
   }
 
-  console.log(`[inbound] recipient header: "${recipient}"`);
-
   const user = await getUserByForwardingAddress(recipient);
   if (!user) {
-    console.log(`[inbound] 202 — unknown recipient skipped: "${recipient}"`);
-    // Don't hard-fail unknown recipients; providers may still route stale forwarding targets.
     return NextResponse.json(
       { ok: true, skipped: "unknown_recipient" },
       { status: 202 },
     );
   }
-  const userId = user.id;
 
-  // ── Parse MIME ────────────────────────────────────────────────────────────
+  // Enforce body size limit
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+
   const rawBuffer = Buffer.from(await req.arrayBuffer());
+  if (rawBuffer.byteLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+
   let email;
   try {
     email = await parseMimeEmail(rawBuffer);
-  } catch (err) {
-    console.error("[inbound] MIME parse error:", err);
+  } catch {
     return NextResponse.json({ error: "Parse failed" }, { status: 422 });
   }
 
-  // ── Sender whitelist check ───────────────────────────────────────────────
-  const senderAllowed = await isSenderWhitelisted(userId, email.from);
+  // Sender whitelist: optional preference signal — log, do not reject
+  const senderAllowed = await isSenderWhitelisted(user.id, email.from);
   if (!senderAllowed) {
     console.log(
-      `[inbound] skipped: sender not whitelisted (user=${userId}, sender="${email.from}")`,
+      `[inbound] sender not whitelisted (user=${user.id}, sender="${email.from}") — proceeding anyway`,
     );
-    return NextResponse.json({ ok: true, skipped: "sender_not_whitelisted" }, { status: 202 });
   }
 
-  // ── Load user rules ───────────────────────────────────────────────────────
-  const rulesResult = await pool.query<{ rule_text: string }>(
-    `SELECT rule_text FROM user_rules WHERE user_id = $1 ORDER BY created_at`,
-    [userId],
+  // email.id is the Message-ID; email.date is an ISO 8601 string
+  const messageId = email.id ?? `no-message-id-${Date.now()}`;
+  const contentHash = computeContentHash(user.id, messageId, rawBuffer);
+
+  const { emailRecordId, isDuplicate } = await enqueueInboundEmail({
+    userId: user.id,
+    messageId,
+    subject: email.subject ?? null,
+    sender: email.from,
+    receivedAt: email.date ? new Date(email.date) : new Date(),
+    contentHash,
+    rawMime: rawBuffer,
+    parsedBody: email.body ?? "",
+  });
+
+  return NextResponse.json(
+    { ok: true, accepted: true, emailRecordId, isDuplicate },
+    { status: 202 },
   );
-  const userRules = rulesResult.rows.map((r) => r.rule_text);
-
-  // ── Run AI pipeline ───────────────────────────────────────────────────────
-  const { results } = await processEmailsBatched([email], userId, userRules);
-
-  // ── Push notification for calendar events ─────────────────────────────────
-  const processed = results[0];
-  if (processed?.ruleMatches?.length) {
-    await sendPushNotification(userId, {
-      title: "Rules triggered",
-      body: email.subject,
-    }).catch((err) => console.warn("[inbound] Push failed:", err));
-  }
-
-  return NextResponse.json({ ok: true, processed: results.length });
 }

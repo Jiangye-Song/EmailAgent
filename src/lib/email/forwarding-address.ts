@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { pool } from "@/lib/db";
 
 const EMAIL_IN_TEXT_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
@@ -39,8 +40,8 @@ export async function ensureForwardingAddress(userId: string): Promise<string> {
   const domain = process.env.INBOUND_DOMAIN;
   if (!domain) throw new Error("INBOUND_DOMAIN env var is not set");
 
-  // First 8 hex chars of the UUID (without dashes) as the address prefix
-  const prefix = userId.replace(/-/g, "").slice(0, 8);
+  // High-entropy random prefix for new forwarding addresses
+  const prefix = randomBytes(12).toString("hex");
   const address = `${prefix}@${domain}`;
 
   await pool.query(

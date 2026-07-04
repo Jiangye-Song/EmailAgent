@@ -12,6 +12,7 @@ import {
   updateOpportunityProjection,
 } from "@/lib/opportunities/repository";
 import { validateToolCall, isRequiresApproval } from "./tools";
+import { isDealRelevant, getDealMatchedRule, saveValuableDeal, type DealPreferences } from "./deals";
 
 // ─── Confidence ───────────────────────────────────────────────────────────────
 
@@ -97,6 +98,45 @@ export async function processStoredEmail(
   // Step 4: Short write transaction to persist everything
   const { confidence, opportunityId, eventId, actionIds } =
     await withTransaction(async (client) => {
+      if (extraction.domain === "deal" && extraction.deal) {
+        const deal = extraction.deal;
+        const dealPrefs: DealPreferences = {
+          minimumDiscountPercent: preferences?.deal_preferences?.minimumDiscountPercent ?? 30,
+          freeGifts: preferences?.deal_preferences?.freeGifts ?? false,
+          targetBrands: [],
+        };
+
+        if (isDealRelevant({ ...deal }, dealPrefs)) {
+          const rule = getDealMatchedRule({ ...deal }, dealPrefs);
+          await saveValuableDeal({
+            userId: emailRecord.userId,
+            emailRecordId,
+            brand: deal.brand,
+            offerType: deal.offerType,
+            discountPercent: deal.discountPercent,
+            freeGift: deal.freeGift,
+            expiresAt: deal.expiresAt,
+            offerValue: deal.offerValue,
+            matchedRule: rule,
+            relevanceReason: `${rule}: ${deal.evidence[0] ?? ""}`,
+          });
+        }
+
+        await client.query(
+          `UPDATE email_records
+           SET processing_status = 'completed', message_domain = 'deal',
+               structured_extraction = $1, updated_at = now()
+           WHERE id = $2`,
+          [JSON.stringify(extraction), emailRecordId],
+        );
+        return {
+          confidence: null as number | null,
+          opportunityId: null as string | null,
+          eventId: null as string | null,
+          actionIds: [] as string[],
+        };
+      }
+
       if (extraction.domain !== "job" || !extraction.eventType) {
         // Mark as completed — not a job email
         await client.query(

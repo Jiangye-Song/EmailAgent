@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
          JOIN opportunities o ON o.id = oe.opportunity_id
          WHERE o.user_id = $1
            AND oe.created_at >= $2
-           AND oe.digest_sent_at IS NULL`,
+           AND oe.digest_sent_at IS NULL
+           AND oe.confirmation_status = 'automatic'`,
         [user.id, since],
       );
       const eventIds = eventRows.map((r) => r.id);

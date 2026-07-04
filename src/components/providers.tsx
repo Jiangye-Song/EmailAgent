@@ -87,27 +87,18 @@ export function useThemeMode() {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<PaletteMode>("light");
-  const [isModeReady, setIsModeReady] = useState(false);
-
-  useEffect(() => {
+  const [mode, setMode] = useState<PaletteMode>(() => {
+    if (typeof window === "undefined") return "light";
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark") {
-      setMode(saved);
-    } else {
-      setMode(
-        window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light",
-      );
-    }
-    setIsModeReady(true);
-  }, []);
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
 
   useEffect(() => {
-    if (!isModeReady) return;
     localStorage.setItem(STORAGE_KEY, mode);
-  }, [mode, isModeReady]);
+  }, [mode]);
 
   const theme = useMemo(() => buildTheme(mode), [mode]);
 

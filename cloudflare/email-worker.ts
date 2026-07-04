@@ -3,7 +3,7 @@ export interface Env {
   INBOUND_URL: string; // e.g. https://your-fc-domain.com/api/inbound
 }
 
-export default {
+const emailWorker = {
   async email(
     message: {
       to: string;
@@ -29,3 +29,5 @@ export default {
     }
   },
 };
+
+export default emailWorker;

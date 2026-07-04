@@ -15,9 +15,6 @@ vi.mock("@/lib/db/transaction", () => ({
 import { withTransaction } from "@/lib/db/transaction";
 import {
   enqueueInboundEmail,
-  claimJobs,
-  completeJob,
-  failJob,
   LEASE_DURATION_MS,
   MAX_ATTEMPTS,
   RETRY_DELAYS_MS,

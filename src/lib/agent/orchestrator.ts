@@ -1,7 +1,6 @@
 import { extractEmailIntent } from "./extract";
 import { scoreOpportunityMatch } from "@/lib/opportunities/match";
 import { withTransaction } from "@/lib/db/transaction";
-import type { EmailRecord } from "@/lib/opportunities/repository";
 import {
   getEmailForProcessing,
   getPreferences,
@@ -13,6 +12,15 @@ import {
 } from "@/lib/opportunities/repository";
 import { validateToolCall, isRequiresApproval } from "./tools";
 import { isDealRelevant, getDealMatchedRule, saveValuableDeal, type DealPreferences } from "./deals";
+
+// ─── Logging ──────────────────────────────────────────────────────────────────
+
+function log(
+  level: "info" | "warn" | "error",
+  event: Record<string, unknown>,
+) {
+  console[level](JSON.stringify({ timestamp: new Date().toISOString(), ...event }));
+}
 
 // ─── Confidence ───────────────────────────────────────────────────────────────
 
@@ -94,6 +102,7 @@ export async function processStoredEmail(
   // Step 3: Extract with Qwen (outside the transaction — can be slow)
   const rawEmail = emailRecord.rawMime?.toString("utf8") ?? "";
   const extraction = await extractEmailIntent(rawEmail, prefInput);
+  log("info", { emailRecordId, domain: extraction.domain, eventType: extraction.eventType });
 
   // Step 4: Short write transaction to persist everything
   const { confidence, opportunityId, eventId, actionIds } =
@@ -309,6 +318,7 @@ export async function processStoredEmail(
       return { confidence, opportunityId, eventId, actionIds };
     });
 
+  log("info", { emailRecordId, domain: extraction.domain, confidence, status: "completed" });
   return {
     emailRecordId,
     domain: extraction.domain,

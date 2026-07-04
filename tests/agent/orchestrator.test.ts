@@ -1,5 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { JobEmailExtraction } from "@/lib/opportunities/schemas";
+import { describe, expect, it } from "vitest";
 import { compositeConfidence } from "@/lib/agent/orchestrator";
 
 // We test compositeConfidence in isolation (pure function, no DB)

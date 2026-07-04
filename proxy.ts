@@ -9,7 +9,7 @@ export const proxy = auth((req) => {
   // Never block API routes — they handle their own auth
   if (pathname.startsWith("/api/")) return;
 
-  const protectedRoutes = ["/inbox", "/settings"];
+  const protectedRoutes = ["/inbox", "/settings", "/onboarding", "/opportunities", "/deals"];
   const isProtected = protectedRoutes.some((r) => pathname.startsWith(r));
 
   if (isProtected && !isLoggedIn) {
@@ -20,5 +20,5 @@ export const proxy = auth((req) => {
 export const config = {
   // Only run the proxy on pages that need session protection.
   // API routes handle their own auth and must NOT be intercepted.
-  matcher: ["/inbox/:path*", "/settings/:path*"],
+  matcher: ["/inbox/:path*", "/settings/:path*", "/onboarding/:path*", "/opportunities/:path*", "/deals/:path*"],
 };

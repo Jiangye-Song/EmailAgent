@@ -101,3 +101,109 @@ create table if not exists sender_whitelist (
   created_at     timestamptz default now(),
   unique (user_id, sender_email)
 );
+
+-- ─── Opportunity Autopilot (2026-07-04) ─────────────────────────────────────
+
+alter table users add column if not exists onboarding_completed boolean not null default false;
+
+alter table email_records
+  add column if not exists processing_status text not null default 'received'
+    check (processing_status in ('received','processing','completed','failed')),
+  add column if not exists processing_attempts integer not null default 0,
+  add column if not exists last_processing_error text,
+  add column if not exists message_domain text,
+  add column if not exists structured_extraction jsonb,
+  add column if not exists content_hash text,
+  add column if not exists raw_mime bytea;
+
+create unique index if not exists email_records_user_content_hash_idx
+  on email_records(user_id, content_hash)
+  where content_hash is not null;
+
+create table if not exists user_preferences (
+  user_id uuid primary key references users(id) on delete cascade,
+  target_roles jsonb not null default '[]',
+  locations jsonb not null default '[]',
+  remote_preference text not null default 'either',
+  target_companies jsonb not null default '[]',
+  immediate_alert_events jsonb not null default '[]',
+  deal_preferences jsonb not null default '{}',
+  freeform_instruction text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists opportunities (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  company text not null,
+  normalized_company text not null,
+  role text not null,
+  normalized_role text not null,
+  location text,
+  application_reference text,
+  current_stage text not null default 'applied',
+  outcome text not null default 'active',
+  latest_confidence double precision not null default 0,
+  next_action text,
+  next_deadline timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists opportunities_user_idx on opportunities(user_id, updated_at desc);
+
+create table if not exists opportunity_events (
+  id uuid primary key default uuid_generate_v4(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  email_record_id uuid references email_records(id) on delete set null,
+  event_type text not null,
+  event_at timestamptz,
+  deadline_at timestamptz,
+  evidence jsonb not null default '[]',
+  confidence double precision not null,
+  confirmation_status text not null default 'automatic',
+  extraction jsonb not null,
+  digest_sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique(opportunity_id, email_record_id, event_type)
+);
+
+create table if not exists agent_actions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  opportunity_event_id uuid references opportunity_events(id) on delete cascade,
+  action_type text not null,
+  payload jsonb not null,
+  status text not null default 'proposed',
+  execution_result jsonb,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists email_processing_jobs (
+  id uuid primary key default uuid_generate_v4(),
+  email_record_id uuid not null unique references email_records(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  status text not null default 'pending',
+  attempt_count integer not null default 0,
+  next_attempt_at timestamptz not null default now(),
+  lease_owner text,
+  lease_expires_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists valuable_deals (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references users(id) on delete cascade,
+  email_record_id uuid not null unique references email_records(id) on delete cascade,
+  brand text not null,
+  offer_type text not null,
+  offer_value text,
+  expires_at timestamptz,
+  matched_rule text not null,
+  relevance_reason text not null,
+  created_at timestamptz not null default now()
+);

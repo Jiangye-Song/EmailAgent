@@ -46,6 +46,10 @@ export function scoreOpportunityMatch(
   const normCompany = normalizeCompany(extraction.company ?? "");
   const normRole = normalizeRoleForMatch(extraction.role ?? "");
 
+  if (!normCompany || !candidate.normalizedCompany) {
+    return { score: 0, reason: "no_match" };
+  }
+
   // Exact normalized company + role
   if (
     normCompany === candidate.normalizedCompany &&

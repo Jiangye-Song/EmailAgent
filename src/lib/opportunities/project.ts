@@ -1,6 +1,6 @@
-import type { OpportunityStage } from "./schemas";
+import type { JobEventType, OpportunityStage } from "./schemas";
 
-const STAGE_BY_EVENT: Record<string, OpportunityStage> = {
+const STAGE_BY_EVENT: Record<string, OpportunityStage | undefined> = {
   application_received: "applied",
   assessment_assigned: "assessment",
   assessment_deadline_changed: "assessment",
@@ -13,7 +13,7 @@ const STAGE_BY_EVENT: Record<string, OpportunityStage> = {
 };
 
 type EventInput = {
-  eventType: string;
+  eventType: JobEventType;
   confirmed: boolean;
   deadlineAt?: string | null;
 };
@@ -40,7 +40,11 @@ export function projectOpportunity(events: EventInput[]): ProjectionResult {
     } else if (event.eventType === "application_withdrawn") {
       outcome = "withdrawn";
     }
-    if (event.deadlineAt && (!nextDeadline || event.deadlineAt < nextDeadline)) {
+    if (
+      event.deadlineAt &&
+      (!nextDeadline ||
+        new Date(event.deadlineAt) < new Date(nextDeadline))
+    ) {
       nextDeadline = event.deadlineAt;
     }
   }

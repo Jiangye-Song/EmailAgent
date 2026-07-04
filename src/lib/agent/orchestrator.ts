@@ -95,13 +95,169 @@ export async function processStoredEmail(
   const extraction = await extractEmailIntent(rawEmail, prefInput);
 
   // Step 4: Short write transaction to persist everything
-  let opportunityId: string | null = null;
-  let eventId: string | null = null;
-  const actionIds: string[] = [];
+  const { confidence, opportunityId, eventId, actionIds } =
+    await withTransaction(async (client) => {
+      if (extraction.domain !== "job" || !extraction.eventType) {
+        // Mark as completed — not a job email
+        await client.query(
+          `UPDATE email_records
+           SET processing_status = 'completed', message_domain = $1,
+               structured_extraction = $2, updated_at = now()
+           WHERE id = $3`,
+          [extraction.domain, JSON.stringify(extraction), emailRecordId],
+        );
+        return {
+          confidence: null as number | null,
+          opportunityId: null as string | null,
+          eventId: null as string | null,
+          actionIds: [] as string[],
+        };
+      }
 
-  await withTransaction(async (client) => {
-    if (extraction.domain !== "job" || !extraction.eventType) {
-      // Mark as completed — not a job email
+      // Calculate composite confidence
+      const candidates = await findOpportunityCandidates(client, emailRecord.userId);
+
+      // Score candidates
+      const scored = candidates
+        .map((c) => ({
+          ...c,
+          ...scoreOpportunityMatch(
+            {
+              company: extraction.company,
+              role: extraction.role,
+              applicationReference: extraction.applicationReference,
+            },
+            c,
+          ),
+        }))
+        .filter((c) => c.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      const bestMatch = scored[0];
+      const hasAmbiguity =
+        scored.length >= 2 &&
+        scored[1].score >= 0.7 &&
+        bestMatch.score - scored[1].score < 0.2;
+
+      const exactReference =
+        !!extraction.applicationReference &&
+        bestMatch?.applicationReference === extraction.applicationReference;
+      const exactCompanyRole = bestMatch?.score === 0.9;
+
+      const confidence = compositeConfidence({
+        model: extraction.modelConfidence,
+        evidenceCount: extraction.evidence.length,
+        exactReference,
+        exactCompanyRole,
+        hasEventType: !!extraction.eventType,
+      });
+
+      let opportunityId: string | null = null;
+      let eventId: string | null = null;
+      const actionIds: string[] = [];
+      let confirmationStatus: "automatic" | "pending" = "pending";
+
+      if (confidence >= 0.85 && !hasAmbiguity) {
+        // HIGH confidence: auto-apply
+        confirmationStatus = "automatic";
+        if (bestMatch && bestMatch.score >= 0.85) {
+          opportunityId = bestMatch.id;
+        } else {
+          // Create new opportunity
+          opportunityId = await createOpportunity(client, {
+            userId: emailRecord.userId,
+            company: extraction.company ?? "Unknown",
+            role: extraction.role ?? "Unknown",
+            location: extraction.location,
+            applicationReference: extraction.applicationReference,
+            initialConfidence: confidence,
+          });
+        }
+      } else if (confidence >= 0.60 && !hasAmbiguity) {
+        // MEDIUM confidence: create opportunity but mark events as pending
+        confirmationStatus = "pending";
+        if (bestMatch && bestMatch.score >= 0.85) {
+          opportunityId = bestMatch.id;
+        } else {
+          // Create new opportunity
+          opportunityId = await createOpportunity(client, {
+            userId: emailRecord.userId,
+            company: extraction.company ?? "Unknown",
+            role: extraction.role ?? "Unknown",
+            location: extraction.location,
+            applicationReference: extraction.applicationReference,
+            initialConfidence: confidence,
+          });
+        }
+      } else {
+        // LOW confidence or ambiguous: request human review only
+        await saveAgentAction(client, {
+          userId: emailRecord.userId,
+          opportunityEventId: null,
+          actionType: "request_human_review",
+          payload: {
+            reason: hasAmbiguity ? "ambiguous_match" : "low_confidence",
+            confidence,
+            extraction,
+          },
+          status: "proposed",
+        });
+        // DO NOT create/update opportunity
+      }
+
+      // Append event if we have an opportunity
+      if (opportunityId && extraction.eventType) {
+        eventId = await appendOpportunityEvent(client, {
+          opportunityId,
+          emailRecordId,
+          eventType: extraction.eventType,
+          eventAt: extraction.eventAt,
+          deadlineAt: extraction.deadlineAt,
+          evidence: extraction.evidence,
+          confidence,
+          confirmationStatus,
+          extraction,
+        });
+
+        // For medium confidence, save a propose_stage_update action for user to confirm
+        if (confirmationStatus === "pending") {
+          const stageActionId = await saveAgentAction(client, {
+            userId: emailRecord.userId,
+            opportunityEventId: eventId,
+            actionType: "propose_stage_update",
+            payload: {
+              opportunityId,
+              eventType: extraction.eventType,
+              confidence,
+              extraction,
+            },
+            status: "proposed",
+          });
+          actionIds.push(stageActionId);
+        }
+
+        await updateOpportunityProjection(client, opportunityId);
+      }
+
+      // Process suggested actions
+      for (const action of extraction.suggestedActions) {
+        try {
+          validateToolCall(action);
+          const requiresApproval = isRequiresApproval(action.type);
+          const actionId = await saveAgentAction(client, {
+            userId: emailRecord.userId,
+            opportunityEventId: eventId,
+            actionType: action.type,
+            payload: action.payload,
+            status: requiresApproval ? "proposed" : "approved",
+          });
+          actionIds.push(actionId);
+        } catch {
+          // Invalid tool — silently skip (do not record)
+        }
+      }
+
+      // Update email record
       await client.query(
         `UPDATE email_records
          SET processing_status = 'completed', message_domain = $1,
@@ -109,127 +265,14 @@ export async function processStoredEmail(
          WHERE id = $3`,
         [extraction.domain, JSON.stringify(extraction), emailRecordId],
       );
-      return;
-    }
 
-    // Calculate composite confidence
-    const candidates = await findOpportunityCandidates(client, emailRecord.userId);
-
-    // Score candidates
-    const scored = candidates
-      .map((c) => ({
-        ...c,
-        ...scoreOpportunityMatch(
-          {
-            company: extraction.company,
-            role: extraction.role,
-            applicationReference: extraction.applicationReference,
-          },
-          c,
-        ),
-      }))
-      .filter((c) => c.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    const bestMatch = scored[0];
-    const hasAmbiguity =
-      scored.length >= 2 &&
-      scored[1].score >= 0.7 &&
-      bestMatch.score - scored[1].score < 0.2;
-
-    const exactReference =
-      !!extraction.applicationReference &&
-      bestMatch?.applicationReference === extraction.applicationReference;
-    const exactCompanyRole = bestMatch?.score === 0.9;
-
-    const confidence = compositeConfidence({
-      model: extraction.modelConfidence,
-      evidenceCount: extraction.evidence.length,
-      exactReference,
-      exactCompanyRole,
-      hasEventType: !!extraction.eventType,
+      return { confidence, opportunityId, eventId, actionIds };
     });
-
-    const confirmationStatus: "automatic" | "pending" =
-      confidence >= 0.85 && !hasAmbiguity ? "automatic" : "pending";
-
-    // Resolve opportunity
-    if (!hasAmbiguity && bestMatch && bestMatch.score >= 0.85) {
-      opportunityId = bestMatch.id;
-    } else if (!hasAmbiguity && confidence >= 0.85) {
-      // Create new opportunity
-      opportunityId = await createOpportunity(client, {
-        userId: emailRecord.userId,
-        company: extraction.company ?? "Unknown",
-        role: extraction.role ?? "Unknown",
-        location: extraction.location,
-        applicationReference: extraction.applicationReference,
-        initialConfidence: confidence,
-      });
-    } else {
-      // Request human review
-      await saveAgentAction(client, {
-        userId: emailRecord.userId,
-        opportunityEventId: null,
-        actionType: "request_human_review",
-        payload: {
-          reason: hasAmbiguity ? "ambiguous_match" : "low_confidence",
-          confidence,
-          extraction,
-        },
-        status: "proposed",
-      });
-    }
-
-    // Append event if we have an opportunity
-    if (opportunityId && extraction.eventType) {
-      eventId = await appendOpportunityEvent(client, {
-        opportunityId,
-        emailRecordId,
-        eventType: extraction.eventType,
-        eventAt: extraction.eventAt,
-        deadlineAt: extraction.deadlineAt,
-        evidence: extraction.evidence,
-        confidence,
-        confirmationStatus,
-        extraction,
-      });
-
-      await updateOpportunityProjection(client, opportunityId);
-    }
-
-    // Process suggested actions
-    for (const action of extraction.suggestedActions) {
-      try {
-        validateToolCall(action);
-        const requiresApproval = isRequiresApproval(action.type);
-        const actionId = await saveAgentAction(client, {
-          userId: emailRecord.userId,
-          opportunityEventId: eventId,
-          actionType: action.type,
-          payload: action.payload,
-          status: requiresApproval ? "proposed" : "approved",
-        });
-        actionIds.push(actionId);
-      } catch {
-        // Invalid tool — silently skip (do not record)
-      }
-    }
-
-    // Update email record
-    await client.query(
-      `UPDATE email_records
-       SET processing_status = 'completed', message_domain = $1,
-           structured_extraction = $2, updated_at = now()
-       WHERE id = $3`,
-      [extraction.domain, JSON.stringify(extraction), emailRecordId],
-    );
-  });
 
   return {
     emailRecordId,
     domain: extraction.domain,
-    confidence: null,
+    confidence,
     opportunityId,
     eventId,
     actions: actionIds,

@@ -1,40 +1,57 @@
-# Email Digest Agent
+# EmailAgent — Job Opportunity Autopilot
 
-An AI-powered email assistant that receives forwarded emails, classifies them, extracts action items, and presents a digest with a Human-in-the-Loop (HITL) confirmation queue.
+**Hackathon Track 4: Autopilot Agent**
 
-Built with **Next.js 16**, **Qwen Cloud AI**, **PostgreSQL + pgvector**, and **Cloudflare Email Routing**.
+> Never let an important opportunity disappear inside a noisy inbox.
+
+Job seekers apply through multiple platforms and receive assessments, interview
+invitations, offers, and rejections in the same inbox as newsletters and
+promotions. Traditional inboxes organize by sender and time. This agent
+organizes by **goal**: what changed in your job search, what requires action,
+and what deadline you cannot miss.
+
+EmailAgent connects to any email provider via auto-forwarding — no OAuth, no
+account access — and turns fragmented recruitment emails into a structured,
+actionable opportunity board backed by Qwen AI and Alibaba Cloud.
 
 ---
 
 ## How it works
 
-1. Register an account → get a unique forwarding address (e.g. `abc12345@emailagent.top`)
-2. Add that address to the auto-forward settings in your email app (Gmail, Outlook, etc.)
-3. Every email forwarded there is classified, summarised, and embedded by Qwen AI
-4. Browse your inbox dashboard — approve or reject AI-recommended actions
+1. Register → get a unique high-entropy forwarding address (e.g. `abc1234567890@emailagent.top`)
+2. Add that address to Gmail/Outlook auto-forward settings
+3. Cloudflare Email Routing delivers raw MIME to a Function Compute inbound endpoint
+4. The email is persisted immediately; a job queue processes it with Qwen
+5. Qwen extracts structured event data; deterministic code validates, matches,
+   and gates the result by composite confidence
+6. The Opportunity Board updates automatically — high-confidence events apply
+   immediately; mid-confidence events wait for your confirmation
+7. You approve or reject proposed calendar events, reply drafts, and stage updates
 
 ---
 
-## Features
+## Core Capabilities
 
-- **Email forwarding inbox** — receive emails via auto-forward, no OAuth required
-- **AI classification** — categorises each email (newsletter / alert / personal / promotion / other) using `qwen3.6-flash`
-- **AI summarisation** — generates a 2-sentence summary and extracts action items using `qwen3.7-plus`
-- **Semantic search index** — embeds each email with `text-embedding-v4` and stores in pgvector
-- **Inbox dashboard** — browse emails grouped by category with summaries and todos
-- **HITL action queue** — approve or reject AI-recommended actions before execution
-- **User-defined rules** — write plain-language rules evaluated by `qwen3.7-max`
+- **Opportunity Board** — five-stage kanban (Applied → Assessment → Interview → Offer → Closed)
+- **Event timeline** — immutable, event-sourced; stage is a projection of confirmed events
+- **Composite confidence gate** — automatic (≥0.85) / pending (0.60–0.84) / human review (<0.60)
+- **Human-in-the-loop** — proposed actions require approval; no automatic external sends
+- **Durable job queue** — FOR UPDATE SKIP LOCKED, 5-min lease, exponential retry
+- **Idempotent pipeline** — SHA-256 content hash prevents duplicate AI calls
+- **Valuable deals** — surfaces only offers matching explicit user preferences
+- **Demo replay** — fixture-based endpoint reproduces the full pipeline without a live email provider
+- **Prompt-injection resistance** — email content validated by Zod schema, not prompt engineering alone
 
 ---
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|---|---|---|
-| Node.js | 20.9+ | Required by Next.js 16 |
-| pnpm | 9+ | `npm install -g pnpm` |
-| Docker Desktop | any | Runs local PostgreSQL + pgvector |
-| Git | any | |
+| Tool | Version |
+|---|---|
+| Node.js | 20.9+ |
+| pnpm | 11+ (`npm install -g pnpm`) |
+| Docker Desktop | any (local PostgreSQL) |
+| Git | any |
 
 ---
 
@@ -54,66 +71,53 @@ pnpm install
 cp .env.local.example .env.local
 ```
 
-Open `.env.local` and fill in:
+Fill in `.env.local`:
 
 ```env
-# ─── NextAuth.js v5 ───────────────────────────────────────────────────────────
-AUTH_SECRET=          # generate with: npx auth secret
+# Auth.js v5
+AUTH_SECRET=          # npx auth secret
 
-# ─── Local PostgreSQL (Docker) ────────────────────────────────────────────────
+# PostgreSQL (Docker locally) or PolarDB connection string
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/email_agent
 
-# ─── Qwen Cloud ───────────────────────────────────────────────────────────────
-QWEN_API_KEY=         # sk-... from https://home.qwencloud.com/api-keys
+# Qwen Cloud
+QWEN_API_KEY=         # sk-... from home.qwencloud.com
 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 
-# ─── Email forwarding ─────────────────────────────────────────────────────────
-INBOUND_DOMAIN=emailagent.top   # domain used to generate per-user forwarding addresses
-CF_INBOUND_SECRET=              # any random string — must match the Cloudflare Worker secret
+# Email forwarding
+INBOUND_DOMAIN=emailagent.top
+CF_INBOUND_SECRET=    # any strong random string
 
-# ─── Web Push (optional — skip for basic local testing) ───────────────────────
+# Job runner and demo replay
+JOB_RUNNER_SECRET=
+DEMO_REPLAY_SECRET=
+
+# Web Push (optional)
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:you@example.com
 ```
 
-Generate `AUTH_SECRET`:
+Generate secrets:
 
 ```bash
-npx auth secret
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Generate a random `CF_INBOUND_SECRET` (any strong string, e.g. output of):
-
-```bash
-node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
-```
-
-### 3. Get a Qwen Cloud API key
-
-1. Sign up at [home.qwencloud.com](https://home.qwencloud.com)
-2. Go to **API Keys → Create API key**
-3. Copy the key (starts with `sk-`) → `QWEN_API_KEY`
-
-New accounts receive a free quota — no billing required to test.
-
-### 4. Start the database
+### 3. Start the database
 
 ```bash
 docker compose up -d
 ```
 
-This starts PostgreSQL 16 + pgvector and automatically applies the schema from `scripts/db/schema.sql`.
-
-Verify all tables were created:
+Apply the opportunity autopilot migration:
 
 ```bash
-docker exec email-agent-postgres psql -U postgres -d email_agent -c "\dt"
+docker exec -i email-agent-postgres psql -U postgres -d email_agent \
+  < scripts/db/2026-07-04-opportunity-autopilot.sql
 ```
 
-Expected tables: `digest_exports`, `email_records`, `sender_whitelist`, `sessions`, `user_rules`, `users`, `verification_tokens`
-
-### 5. Start the dev server
+### 4. Start the dev server
 
 ```bash
 pnpm dev
@@ -121,106 +125,79 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### 6. Register and get your forwarding address
-
-1. Go to [http://localhost:3000/register](http://localhost:3000/register)
-2. Create an account with email + password
-3. Go to **Settings** — your unique forwarding address is shown (e.g. `abc12345@emailagent.top`)
-
-> **Note:** For local testing you can simulate an inbound email without Cloudflare setup — see [Testing inbound emails locally](#testing-inbound-emails-locally) below.
+1. Register at `/register`
+2. Complete preference onboarding at `/onboarding`
+3. Your forwarding address is shown in Settings
 
 ---
 
-## Testing inbound emails locally
-
-There are two options: a quick `curl` test, or a full end-to-end flow via a Cloudflare Tunnel.
-
-### Option A — Direct curl (no Cloudflare needed)
-
-POST a raw email directly to your local dev server:
+## Automated Tests
 
 ```bash
-curl -X POST http://localhost:3000/api/inbound \
-  -H "Content-Type: message/rfc822" \
-  -H "X-CF-Secret: <your CF_INBOUND_SECRET from .env.local>" \
-  -H "X-Recipient: <your forwarding address e.g. abc12345@emailagent.top>" \
-  --data-binary @- <<'EOF'
-From: sender@example.com
-To: abc12345@emailagent.top
-Subject: Test email
-Date: Sat, 28 Jun 2026 12:00:00 +0000
-Message-ID: <test-001@example.com>
-
-Hello! This is a test email for the AI digest agent.
-Please classify, summarise, and extract any action items.
-EOF
+pnpm test               # all tests (no Qwen key required)
+pnpm test:domain        # domain unit tests only
+pnpm lint               # ESLint
+pnpm exec tsc --noEmit  # TypeScript
+pnpm build              # production build
 ```
 
-A successful response looks like `{"ok":true,"processed":1}` and the email will appear in your inbox dashboard.
+All five commands must exit 0.
 
-### Option B — Real email forwarding via Cloudflare Tunnel
+---
 
-This option lets you use actual Gmail auto-forwarding so real emails hit your local app.
+## Demo Replay (No Email Provider Required)
 
-**Prerequisites:** [Cloudflare account](https://cloudflare.com), domain on Cloudflare DNS, `wrangler` and `cloudflared` CLI tools installed.
+Inject a named fixture through the same inbound pipeline:
 
-#### 1. Install CLIs
+```bash
+# available fixtures: application | assessment | interview | rejection | prompt-injection
+curl -X POST http://localhost:3000/api/demo/replay \
+  -H "Authorization: Bearer <DEMO_REPLAY_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"fixture":"interview"}'
 
-```powershell
-pnpm add -g wrangler
-winget install Cloudflare.cloudflared
+# trigger job processing
+curl -X POST http://localhost:3000/api/jobs/process-email \
+  -H "Authorization: Bearer <JOB_RUNNER_SECRET>"
 ```
 
-#### 2. Create a persistent tunnel
+Navigate to `/opportunities` to see the result.
 
-```powershell
-cloudflared tunnel login
-cloudflared tunnel create emailagent-dev
+---
 
-# Route a subdomain to the tunnel (uses your Cloudflare-managed domain)
-cd cloudflare
-cloudflared tunnel route dns emailagent-dev dev.emailagent.top
+## Live Qwen Evaluation (Optional)
+
+Requires a valid `QWEN_API_KEY`. Uses real API quota.
+
+```bash
+RUN_LIVE_QWEN_EVAL=1 pnpm eval:agent
 ```
 
-#### 3. Start the tunnel (run alongside `pnpm dev`)
+---
 
-```powershell
-cloudflared tunnel run --url http://localhost:3000 emailagent-dev
+## Deployed Demo
+
+See [`docs/alibaba-cloud-proof.md`](docs/alibaba-cloud-proof.md) for the live
+Function Compute URL, ACR image tag, and deployment evidence.
+
+Health check:
+
+```bash
+curl https://<FC-URL>/api/health
+# {"status":"ok","service":"emailagent","timestamp":"..."}
 ```
 
-Your local app is now reachable at `https://dev.emailagent.top`.
+---
 
-#### 4. Deploy the Cloudflare Email Worker
+## Documentation
 
-```powershell
-cd cloudflare
-
-# Set the shared secret (must match CF_INBOUND_SECRET in .env.local)
-wrangler secret put CF_INBOUND_SECRET
-# → type your secret value when prompted
-
-# Deploy the worker
-wrangler deploy
-```
-
-The `INBOUND_URL` in `cloudflare/wrangler.toml` should be `https://dev.emailagent.top/api/inbound`. Update it if needed and re-run `wrangler deploy`.
-
-#### 5. Set up Cloudflare Email Routing
-
-In the [Cloudflare dashboard](https://dash.cloudflare.com) for your domain:
-
-1. Go to **Email → Email Routing → Get started** — this auto-adds MX records
-2. Go to **Routing Rules → Catch-all** → set action to **Send to Worker** → select `email-agent-worker`
-3. Save
-
-#### 6. Configure Gmail auto-forward
-
-1. In Gmail → **Settings (⚙) → See all settings → Forwarding and POP/IMAP**
-2. Click **Add a forwarding address** → enter your address from the Settings page (e.g. `abc12345@emailagent.top`)
-3. Confirm the verification email that arrives in your inbox dashboard
-4. Set **Forward a copy of incoming mail** and save
-
-Send yourself a test email — it should appear in your local inbox dashboard within seconds.
+| Document | Description |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Mermaid pipeline diagram, trust model, component descriptions |
+| [`docs/testing-instructions.md`](docs/testing-instructions.md) | Full testing guide including deployed environment |
+| [`docs/demo-script.md`](docs/demo-script.md) | Three-minute demo timing and fallback notes |
+| [`docs/submission-description.md`](docs/submission-description.md) | Track 4 qualification, technical highlights, stack |
+| [`docs/alibaba-cloud-proof.md`](docs/alibaba-cloud-proof.md) | Alibaba Cloud deployment proof |
 
 ---
 
@@ -228,40 +205,61 @@ Send yourself a test email — it should appear in your local inbox dashboard wi
 
 ```
 cloudflare/
-├── email-worker.ts     # Cloudflare Email Worker — receives inbound emails, POSTs to /api/inbound
-└── wrangler.toml       # Worker config (INBOUND_URL, secrets)
+├── email-worker.ts              # Cloudflare Email Worker
+└── wrangler.toml
 
 scripts/
 └── db/
-    └── schema.sql      # Full PostgreSQL schema (auto-applied by Docker init)
+    ├── schema.sql               # Baseline schema
+    └── 2026-07-04-opportunity-autopilot.sql  # Opportunity tables migration
 
 src/
 ├── app/
-│   ├── register/       # Sign-up page (email + password)
-│   ├── login/          # Sign-in page
-│   ├── inbox/          # Main email dashboard
-│   ├── settings/       # Forwarding address + AI rules
+│   ├── onboarding/             # Preference setup (first-run)
+│   ├── opportunities/          # Opportunity Board
+│   ├── deals/                  # Valuable Deals page
+│   ├── inbox/                  # All Emails (secondary view)
+│   ├── settings/               # Forwarding address + preferences
 │   └── api/
-│       ├── auth/       # NextAuth.js route handler + /register endpoint
-│       └── inbound/    # POST: receive forwarded email → AI pipeline
+│       ├── inbound/            # POST: receive raw MIME (persist-first, 202)
+│       ├── jobs/
+│       │   ├── process-email/  # POST: job runner (Bearer auth)
+│       │   └── send-digest/    # POST: daily summary runner (Bearer auth)
+│       ├── demo/replay/        # POST: fixture replay (Bearer auth)
+│       ├── ics/action/[id]/    # GET: ICS calendar download (authenticated)
+│       ├── notifications/      # VAPID public key + push subscription
+│       └── health/             # GET: no-DB health check
 ├── components/
-│   ├── inbox/          # InboxLayout, InboxSidebar, EmailList, EmailDetail
-│   └── settings/       # ForwardingInfo, RulesEditor
+│   ├── opportunities/          # OpportunityBoard, OpportunityCard, AttentionPanel
+│   └── deals/                  # DealList
 ├── lib/
-│   ├── ai/
-│   │   ├── qwen.ts     # Qwen Cloud clients (flash / plus / max / embed)
-│   │   └── processor.ts# processEmailsBatched() — classify + summarise + embed
-│   ├── email/
-│   │   ├── parser.ts   # Parse raw MIME email → Email object
-│   │   └── forwarding-address.ts  # Generate/lookup per-user @emailagent.top addresses
+│   ├── agent/
+│   │   ├── extract.ts          # Qwen structured extraction boundary
+│   │   ├── orchestrator.ts     # Confidence gating, tool execution
+│   │   ├── tools.ts            # 8-tool allowlist + Zod validation
+│   │   └── deals.ts            # Deal relevance gating
+│   ├── opportunities/
+│   │   ├── schemas.ts          # Zod domain contracts
+│   │   ├── normalize.ts        # Deterministic company/role normalization
+│   │   ├── match.ts            # Opportunity scoring
+│   │   ├── project.ts          # Timeline projection → stage
+│   │   ├── repository.ts       # DB access layer (all accept PoolClient)
+│   │   └── board-query.ts      # Board read model
+│   ├── jobs/
+│   │   └── email-jobs.ts       # Queue: enqueue, claim, complete, fail
 │   ├── actions/
-│   │   └── email-actions.ts  # Server actions: approveAction, rejectAction
-│   ├── db.ts           # pg.Pool singleton
-│   └── push/
-│       └── notify.ts   # Web Push notifications (optional)
-└── types/
-    ├── email.ts        # Email, ProcessedEmail types
-    └── db.ts           # EmailRecord, CalendarEvent DB row types
+│   │   ├── preferences-actions.ts  # Preference upsert server action
+│   │   └── opportunity-actions.ts  # Approve/reject agent actions
+│   ├── notifications/
+│   │   └── digest.ts           # Daily digest builder
+│   └── db/
+│       └── transaction.ts      # withTransaction<T> helper
+└── tests/
+    ├── opportunities/           # Schema, normalization, matching, board
+    ├── agent/                   # Extraction, orchestration, deals, actions
+    ├── jobs/                    # Queue, lease, retry, idempotency
+    ├── api/                     # End-to-end pipeline contract
+    └── fixtures/emails/         # Anonymized MIME fixtures
 ```
 
 ---
@@ -270,54 +268,42 @@ src/
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16, React 19, TypeScript 5 |
-| Auth | NextAuth.js v5 — Credentials provider (email/password) + JWT sessions |
-| Database | PostgreSQL 16 + pgvector (Docker locally, Alibaba Cloud PolarDB in production) |
-| Email ingestion | Cloudflare Email Routing → Cloudflare Worker → `/api/inbound` |
-| AI — Classification | Qwen Cloud `qwen3.6-flash` |
-| AI — Summarisation | Qwen Cloud `qwen3.7-plus` |
-| AI — Rules engine | Qwen Cloud `qwen3.7-max` |
-| AI — Embeddings | Qwen Cloud `text-embedding-v4` (1024-dim) |
-| UI | Tailwind CSS 4, shadcn/ui, Lucide Icons |
-| Hosting (prod) | Alibaba Cloud Function Compute 3.0 (Docker container) |
+| Framework | Next.js 16.2.9 App Router, React 19.2.4, TypeScript 5 |
+| AI | Qwen Cloud (qwen-plus) via AI SDK 7 `generateObject` |
+| Auth | Auth.js v5 — Credentials provider, JWT sessions |
+| Database | PostgreSQL 16 + pgvector (Docker) / Alibaba Cloud PolarDB (production) |
+| Email ingestion | Cloudflare Email Routing → Email Worker → Function Compute |
+| Job queue | PolarDB-backed, FOR UPDATE SKIP LOCKED, exponential retry |
+| Hosting | Alibaba Cloud Function Compute 3.0 (custom AMD64 container) |
+| Container registry | Alibaba Cloud ACR Personal Edition |
+| Notifications | Web Push (VAPID), ICS calendar, mailto drafts |
+| UI | MUI 9 (Material UI), Server Components + Server Actions |
 
 ---
 
-## Resetting the local database
-
-If you need to wipe and re-apply the schema (e.g. after schema changes):
+## Resetting the Local Database
 
 ```bash
-docker compose down -v   # removes the volume — all data is lost
+docker compose down -v   # removes volume — all data lost
 docker compose up -d     # recreates with fresh schema
+# re-apply migration after restart:
+docker exec -i email-agent-postgres psql -U postgres -d email_agent \
+  < scripts/db/2026-07-04-opportunity-autopilot.sql
 ```
 
 ---
 
-## Troubleshooting
+## Security Notes
 
-**`AUTH_SECRET` missing on startup**
-Run `npx auth secret` and set the result as `AUTH_SECRET` in `.env.local`.
+- Secrets are never committed to Git.
+- Email content is placed only in the Qwen user prompt under the `UNTRUSTED_EMAIL`
+  label — it cannot define tools or change permissions.
+- Tool allowlist is enforced by Zod schema validation, not prompt engineering.
+- All DB mutations check user ownership; actions are locked with `FOR UPDATE`.
+- The demo replay endpoint accepts only a named fixture enum, never raw email content.
 
-**`/api/inbound` returns 401**
-The `X-CF-Secret` header value doesn't match `CF_INBOUND_SECRET` in `.env.local`. Make sure both are identical and the dev server was restarted after changing `.env.local`.
+---
 
-**`/api/inbound` returns 404**
-The `X-Recipient` header doesn't match any `forwarding_address` in the `users` table. Re-register or check the address shown in Settings.
+## License
 
-**`expected 1024 dimensions` pgvector error**
-The embedding column dimension mismatch. Reset the DB:
-```bash
-docker compose down -v && docker compose up -d
-```
-
-**`must contain the word 'json'` error from Qwen**
-All `generateObject` prompts must include the word "JSON". This is already handled in `src/lib/ai/processor.ts`.
-
-
-**Docker container not starting**
-Ensure Docker Desktop is running, then:
-```bash
-docker compose down -v
-docker compose up -d
-```
+MIT

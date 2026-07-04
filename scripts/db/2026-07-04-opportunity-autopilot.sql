@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS email_processing_jobs (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS email_processing_jobs_status_idx
+  ON email_processing_jobs(status, next_attempt_at);
+
 CREATE TABLE IF NOT EXISTS valuable_deals (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,

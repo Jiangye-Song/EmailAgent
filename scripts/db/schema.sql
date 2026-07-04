@@ -195,6 +195,9 @@ create table if not exists email_processing_jobs (
   updated_at timestamptz not null default now()
 );
 
+create index if not exists email_processing_jobs_status_idx
+  on email_processing_jobs(status, next_attempt_at);
+
 create table if not exists valuable_deals (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references users(id) on delete cascade,

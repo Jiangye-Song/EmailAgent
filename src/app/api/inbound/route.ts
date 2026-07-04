@@ -14,7 +14,7 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function validateSecret(incoming: string): boolean {
   const expected = process.env.CF_INBOUND_SECRET ?? "";
-  if (!incoming || incoming.length !== expected.length) return false;
+  if (!incoming || !expected || incoming.length !== expected.length) return false;
   try {
     return timingSafeEqual(Buffer.from(incoming), Buffer.from(expected));
   } catch {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import {
   alpha,
@@ -23,14 +23,30 @@ import { EmailList } from "@/components/inbox/EmailList";
 import { EmailDetail } from "@/components/inbox/EmailDetail";
 import { markEmailRead } from "@/lib/actions/email-actions";
 import type { EmailRecord } from "@/types/db";
+import type { PanelKey } from "@/components/PanelSwitcher";
 
-type Props = {
-  records: EmailRecord[];
-  categoryCounts: Record<string, number>;
-  forwardingAddress: string;
+const PANEL_TITLES: Record<PanelKey, string> = {
+  inbox: "Smart Inbox",
+  opportunities: "Opportunity Board",
+  deals: "Valuable Deals",
+  todo: "To Do List",
 };
 
-export function InboxLayout({ records, categoryCounts, forwardingAddress }: Props) {
+type Props = {
+  activePanel?: PanelKey;
+  panelContent?: ReactNode;
+  records?: EmailRecord[];
+  categoryCounts?: Record<string, number>;
+  forwardingAddress?: string;
+};
+
+export function InboxLayout({
+  activePanel = "inbox",
+  panelContent,
+  records = [],
+  categoryCounts = {},
+  forwardingAddress = "",
+}: Props) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
@@ -81,7 +97,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
             </IconButton>
           )}
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Email Digest Inbox
+            {PANEL_TITLES[activePanel]}
           </Typography>
           <Tooltip title="Settings">
             <IconButton component={Link} href="/settings" color="inherit">
@@ -110,6 +126,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
           }}
         >
           <InboxSidebar
+            activePanel={activePanel}
             categoryCounts={categoryCounts}
             selectedCategory={selectedCategory}
             onSelectCategory={(cat) => {
@@ -120,32 +137,40 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
           />
         </Drawer>
 
-        <Box
-          sx={{
-            width: { xs: "100%", md: listWidth },
-            borderRight: "1px solid",
-            borderColor: "divider",
-            bgcolor: "background.paper",
-            overflow: "hidden",
-          }}
-        >
-          <EmailList
-            records={filtered}
-            selectedId={selectedId}
-            onSelect={(id) => {
-              const selected = records.find((r) => r.id === id);
-              setSelectedId(id);
+        {activePanel === "inbox" ? (
+          <>
+            <Box
+              sx={{
+                width: { xs: "100%", md: listWidth },
+                borderRight: "1px solid",
+                borderColor: "divider",
+                bgcolor: "background.paper",
+                overflow: "hidden",
+              }}
+            >
+              <EmailList
+                records={filtered}
+                selectedId={selectedId}
+                onSelect={(id) => {
+                  const selected = records.find((r) => r.id === id);
+                  setSelectedId(id);
 
-              if (selected && !selected.is_read) {
-                void markEmailRead(id);
-              }
-            }}
-          />
-        </Box>
+                  if (selected && !selected.is_read) {
+                    void markEmailRead(id);
+                  }
+                }}
+              />
+            </Box>
 
-        <Box sx={{ flex: 1, minWidth: 0, bgcolor: "background.default" }}>
-          <EmailDetail record={selectedRecord} forwardingAddress={forwardingAddress} />
-        </Box>
+            <Box sx={{ flex: 1, minWidth: 0, bgcolor: "background.default" }}>
+              <EmailDetail record={selectedRecord} forwardingAddress={forwardingAddress} />
+            </Box>
+          </>
+        ) : (
+          <Box sx={{ flex: 1, minWidth: 0, overflow: "auto", bgcolor: "background.default" }}>
+            {panelContent}
+          </Box>
+        )}
       </Stack>
     </Box>
   );

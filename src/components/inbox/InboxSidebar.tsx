@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Avatar,
-  Box,
   Chip,
   Divider,
   List,
@@ -11,7 +9,6 @@ import {
   ListItemIcon,
   ListItemText,
   Stack,
-  Typography,
 } from "@mui/material";
 import MailRoundedIcon from "@mui/icons-material/MailRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
@@ -20,6 +17,7 @@ import SellRoundedIcon from "@mui/icons-material/SellRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ArchiveRoundedIcon from "@mui/icons-material/ArchiveRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import { PanelSwitcher, type PanelKey } from "@/components/PanelSwitcher";
 
 const CATEGORIES = [
   { key: "all", label: "All", icon: MailRoundedIcon },
@@ -32,61 +30,55 @@ const CATEGORIES = [
 ] as const;
 
 type Props = {
-  categoryCounts: Record<string, number>;
-  selectedCategory: string;
-  onSelectCategory: (cat: string) => void;
+  activePanel?: PanelKey;
+  categoryCounts?: Record<string, number>;
+  selectedCategory?: string;
+  onSelectCategory?: (cat: string) => void;
 };
 
-export function InboxSidebar({ categoryCounts, selectedCategory, onSelectCategory }: Props) {
+export function InboxSidebar({
+  activePanel = "inbox",
+  categoryCounts = {},
+  selectedCategory = "all",
+  onSelectCategory,
+}: Props) {
   return (
     <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", px: 2, py: 2 }}>
-        <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main" }}>
-          <MailRoundedIcon sx={{ fontSize: 18 }} />
-        </Avatar>
-        <Box>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            Smart Inbox
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Fast triage
-          </Typography>
-        </Box>
-      </Stack>
-
+      <PanelSwitcher activePanel={activePanel} />
       <Divider />
-
-      <List dense sx={{ flex: 1, py: 1 }}>
-        {CATEGORIES.map(({ key, label, icon: Icon }) => {
-          const count = categoryCounts[key] ?? 0;
-          const isSelected = selectedCategory === key;
-          return (
-            <ListItem key={key} disablePadding sx={{ px: 1 }}>
-              <ListItemButton
-                selected={isSelected}
-                onClick={() => onSelectCategory(key)}
-                sx={{ borderRadius: 2.5, py: 1 }}
-              >
-                <ListItemIcon sx={{ minWidth: 34 }}>
-                  <Icon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={label}
-                  slotProps={{ primary: { sx: { fontSize: 13, fontWeight: isSelected ? 700 : 500 } } }}
-                />
-                {count > 0 && (
-                  <Chip
-                    size="small"
-                    color={isSelected ? "primary" : "default"}
-                    label={count}
-                    sx={{ height: 20, fontSize: 11 }}
+      {activePanel === "inbox" && (
+        <List dense sx={{ flex: 1, py: 1 }}>
+          {CATEGORIES.map(({ key, label, icon: Icon }) => {
+            const count = categoryCounts[key] ?? 0;
+            const isSelected = selectedCategory === key;
+            return (
+              <ListItem key={key} disablePadding sx={{ px: 1 }}>
+                <ListItemButton
+                  selected={isSelected}
+                  onClick={() => onSelectCategory?.(key)}
+                  sx={{ borderRadius: 2.5, py: 1 }}
+                >
+                  <ListItemIcon sx={{ minWidth: 34 }}>
+                    <Icon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={label}
+                    slotProps={{ primary: { sx: { fontSize: 13, fontWeight: isSelected ? 700 : 500 } } }}
                   />
-                )}
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
-      </List>
+                  {count > 0 && (
+                    <Chip
+                      size="small"
+                      color={isSelected ? "primary" : "default"}
+                      label={count}
+                      sx={{ height: 20, fontSize: 11 }}
+                    />
+                  )}
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      )}
     </Stack>
   );
 }

@@ -6,15 +6,11 @@ import {
   Grid,
   Stack,
   Typography,
-  AppBar,
-  Toolbar,
-  Button,
   Chip,
 } from "@mui/material";
-import WorkRoundedIcon from "@mui/icons-material/WorkRounded";
-import Link from "next/link";
 import { AttentionPanel } from "./AttentionPanel";
 import { OpportunityCard } from "./OpportunityCard";
+import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
 import type {
   OpportunityBoard,
   OpportunityBoardItem,
@@ -37,55 +33,17 @@ const STAGE_ORDER: OpportunityStage[] = [
   "closed",
 ];
 
-type Props = { board: OpportunityBoard };
+type Props = { board?: OpportunityBoard | null; onboardingCompleted?: boolean };
 
-export function OpportunityBoardView({ board }: Props) {
+export function OpportunityBoardView({ board, onboardingCompleted = true }: Props) {
+  if (!onboardingCompleted) {
+    return <OnboardingForm />;
+  }
+
+  if (!board) return null;
+
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          <WorkRoundedIcon sx={{ mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>
-            Opportunity Board
-          </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button
-              component={Link}
-              href="/opportunities"
-              variant="text"
-              size="small"
-            >
-              Board
-            </Button>
-            <Button
-              component={Link}
-              href="/inbox"
-              variant="text"
-              size="small"
-            >
-              All Emails
-            </Button>
-            <Button
-              component={Link}
-              href="/deals"
-              variant="text"
-              size="small"
-            >
-              Deals
-            </Button>
-            <Button
-              component={Link}
-              href="/settings"
-              variant="text"
-              size="small"
-            >
-              Settings
-            </Button>
-          </Stack>
-        </Toolbar>
-      </AppBar>
-
-      <Container maxWidth="xl" sx={{ py: 3 }}>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
         {board.urgent.length > 0 && (
           <Box sx={{ mb: 3 }}>
             <AttentionPanel items={board.urgent} />
@@ -132,6 +90,5 @@ export function OpportunityBoardView({ board }: Props) {
           ))}
         </Grid>
       </Container>
-    </Box>
   );
 }

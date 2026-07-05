@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { DealList } from "@/components/deals/DealList";
+import { InboxLayout } from "@/components/inbox/InboxLayout";
 
 type DealRow = {
   id: string;
@@ -28,5 +29,10 @@ export default async function DealsPage() {
     [session.user.id],
   );
 
-  return <DealList deals={rows} />;
+  return (
+    <InboxLayout
+      activePanel="deals"
+      panelContent={<DealList deals={rows} />}
+    />
+  );
 }

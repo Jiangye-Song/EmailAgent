@@ -8,12 +8,8 @@ import {
   Container,
   Stack,
   Typography,
-  AppBar,
-  Toolbar,
-  Button,
 } from "@mui/material";
 import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
-import Link from "next/link";
 
 type Deal = {
   id: string;
@@ -30,31 +26,7 @@ type Props = { deals: Deal[] };
 
 export function DealList({ deals }: Props) {
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          <LocalOfferRoundedIcon sx={{ mr: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>
-            Valuable Deals
-          </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button component={Link} href="/opportunities" variant="text" size="small">
-              Board
-            </Button>
-            <Button component={Link} href="/inbox" variant="text" size="small">
-              All Emails
-            </Button>
-            <Button component={Link} href="/deals" variant="text" size="small">
-              Deals
-            </Button>
-            <Button component={Link} href="/settings" variant="text" size="small">
-              Settings
-            </Button>
-          </Stack>
-        </Toolbar>
-      </AppBar>
-
-      <Container maxWidth="md" sx={{ py: 3 }}>
+    <Container maxWidth="md" sx={{ py: 3 }}>
         {deals.length === 0 ? (
           <Box sx={{ textAlign: "center", py: 8 }}>
             <LocalOfferRoundedIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
@@ -100,6 +72,5 @@ export function DealList({ deals }: Props) {
           </Stack>
         )}
       </Container>
-    </Box>
   );
 }

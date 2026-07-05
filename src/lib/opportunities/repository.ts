@@ -12,6 +12,7 @@ export type EmailRecord = {
   contentHash: string | null;
   structuredExtraction: unknown;
   rawMime: Buffer | null;
+  rawBody: string | null;
 };
 
 export type OpportunityCandidate = {
@@ -63,8 +64,9 @@ export async function getEmailForProcessing(
     content_hash: string | null;
     structured_extraction: unknown;
     raw_mime: Buffer | null;
+    raw_body: string | null;
   }>(
-    `SELECT id, user_id, processing_status, content_hash, structured_extraction, raw_mime
+    `SELECT id, user_id, processing_status, content_hash, structured_extraction, raw_mime, raw_body
      FROM email_records WHERE id = $1`,
     [emailRecordId],
   );
@@ -77,6 +79,7 @@ export async function getEmailForProcessing(
     contentHash: r.content_hash,
     structuredExtraction: r.structured_extraction,
     rawMime: r.raw_mime,
+    rawBody: r.raw_body,
   };
 }
 

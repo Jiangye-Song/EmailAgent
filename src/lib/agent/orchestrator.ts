@@ -12,15 +12,13 @@ import {
 } from "@/lib/opportunities/repository";
 import { validateToolCall, isRequiresApproval } from "./tools";
 import { isDealRelevant, getDealMatchedRule, saveValuableDeal, type DealPreferences } from "./deals";
-
-// ─── Logging ──────────────────────────────────────────────────────────────────
-
-function log(
-  level: "info" | "warn" | "error",
-  event: Record<string, unknown>,
-) {
-  console[level](JSON.stringify({ timestamp: new Date().toISOString(), ...event }));
-}
+import type {
+  EmailCategory,
+  ProcessedActionButton,
+  RecommendedAction,
+} from "@/types/email";
+import type { JobEmailExtraction } from "@/lib/opportunities/schemas";
+import { logError, logInfo, logWarn } from "@/lib/observability/logger";
 
 // ─── Confidence ───────────────────────────────────────────────────────────────
 
@@ -58,110 +56,231 @@ export type ProcessResult = {
   status: "completed" | "human_review" | "other";
 };
 
+type InboxProjection = {
+  category: EmailCategory;
+  summary: string;
+  todos: string[];
+  actionButtons: ProcessedActionButton[];
+  recommendedAction: RecommendedAction;
+};
+
+function formatEventType(value: string | null): string {
+  if (!value) return "update";
+  return value.replaceAll("_", " ");
+}
+
+function buildInboxProjection(extraction: JobEmailExtraction): InboxProjection {
+  if (extraction.domain === "deal" && extraction.deal) {
+    const deal = extraction.deal;
+    const offerText = deal.discountPercent
+      ? `${deal.discountPercent}% ${deal.offerType}`
+      : deal.offerValue ?? deal.offerType;
+    const summary = `${deal.brand}: ${offerText} offer${deal.expiresAt ? ` (expires ${new Date(deal.expiresAt).toLocaleDateString()})` : ""}.`;
+    const todos = [
+      ...(deal.actionUrl ? [`Review offer details: ${deal.actionUrl}`] : []),
+    ];
+    const actionButtons: ProcessedActionButton[] = deal.actionUrl
+      ? [{ label: "Open Offer", kind: "url", href: deal.actionUrl, tone: "accent" }]
+      : [];
+    return {
+      category: "promotion",
+      summary,
+      todos,
+      actionButtons,
+      recommendedAction: "keep",
+    };
+  }
+
+  if (extraction.domain === "job") {
+    const eventText = formatEventType(extraction.eventType);
+    const companyText = extraction.company ? ` from ${extraction.company}` : "";
+    const roleText = extraction.role ? ` for ${extraction.role}` : "";
+    const summary = `Job ${eventText}${companyText}${roleText}.`;
+    const todos: string[] = [];
+    if (extraction.deadlineAt) {
+      todos.push(`Track deadline: ${new Date(extraction.deadlineAt).toLocaleString()}`);
+    }
+    if (extraction.evidence[0]) {
+      todos.push(`Key evidence: ${extraction.evidence[0]}`);
+    }
+
+    const recommendedAction: RecommendedAction = extraction.eventType === "rejection_received"
+      ? "archive"
+      : extraction.eventType === "recruiter_contact" ||
+          extraction.eventType === "information_requested" ||
+          extraction.eventType === "interview_invited"
+        ? "draft_reply"
+        : "keep";
+
+    return {
+      category: "alert",
+      summary,
+      todos,
+      actionButtons: [],
+      recommendedAction,
+    };
+  }
+
+  return {
+    category: "other",
+    summary: extraction.evidence[0] ?? "Email received and processed.",
+    todos: [],
+    actionButtons: [],
+    recommendedAction: "archive",
+  };
+}
+
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 
 export async function processStoredEmail(
   emailRecordId: string,
 ): Promise<ProcessResult> {
-  // Step 1: Get email and preferences inside a short read-only transaction
-  // Return the values so TypeScript can properly infer the types
-  const { emailRecord, preferences } = await withTransaction(async (client) => {
-    const record = await getEmailForProcessing(client, emailRecordId);
-    if (!record) throw new Error(`Email record not found: ${emailRecordId}`);
-    const prefs = await getPreferences(client, record.userId);
-    return { emailRecord: record, preferences: prefs };
-  });
+  logInfo("orchestrator.start", { emailRecordId });
+  try {
+    // Step 1: Get email and preferences inside a short read-only transaction
+    // Return the values so TypeScript can properly infer the types
+    const { emailRecord, preferences } = await withTransaction(async (client) => {
+      const record = await getEmailForProcessing(client, emailRecordId);
+      if (!record) throw new Error(`Email record not found: ${emailRecordId}`);
+      const prefs = await getPreferences(client, record.userId);
+      return { emailRecord: record, preferences: prefs };
+    });
 
-  // Step 2: Build preferences for extraction (use defaults if none saved)
-  const prefInput = preferences
-    ? {
-        targetRoles: preferences.target_roles ?? [],
-        locations: preferences.locations ?? [],
-        remotePreference: (preferences.remote_preference ?? "either") as
-          | "remote"
-          | "hybrid"
-          | "onsite"
-          | "either",
-        targetCompanies: preferences.target_companies ?? [],
-        immediateAlertEvents: (preferences.immediate_alert_events ?? []) as never,
-        minimumDiscountPercent: preferences.deal_preferences?.minimumDiscountPercent ?? 30,
-        freeGifts: preferences.deal_preferences?.freeGifts ?? false,
-        freeformInstruction: preferences.freeform_instruction ?? "",
-      }
-    : {
-        targetRoles: ["Software Engineer"],
-        locations: [],
-        remotePreference: "either" as const,
-        targetCompanies: [],
-        immediateAlertEvents: [] as never,
-        minimumDiscountPercent: 30,
-        freeGifts: false,
-        freeformInstruction: "",
-      };
-
-  // Step 3: Extract with Qwen (outside the transaction — can be slow)
-  const rawEmail = emailRecord.rawMime?.toString("utf8") ?? "";
-  const extraction = await extractEmailIntent(rawEmail, prefInput);
-  log("info", { emailRecordId, domain: extraction.domain, eventType: extraction.eventType });
-
-  // Step 4: Short write transaction to persist everything
-  const { confidence, opportunityId, eventId, actionIds } =
-    await withTransaction(async (client) => {
-      if (extraction.domain === "deal" && extraction.deal) {
-        const deal = extraction.deal;
-        const dealPrefs: DealPreferences = {
-          minimumDiscountPercent: preferences?.deal_preferences?.minimumDiscountPercent ?? 30,
-          freeGifts: preferences?.deal_preferences?.freeGifts ?? false,
-          targetBrands: [],
+    // Step 2: Build preferences for extraction (use defaults if none saved)
+    const prefInput = preferences
+      ? {
+          targetRoles: preferences.target_roles ?? [],
+          locations: preferences.locations ?? [],
+          remotePreference: (preferences.remote_preference ?? "either") as
+            | "remote"
+            | "hybrid"
+            | "onsite"
+            | "either",
+          targetCompanies: preferences.target_companies ?? [],
+          immediateAlertEvents: (preferences.immediate_alert_events ?? []) as never,
+          minimumDiscountPercent: preferences.deal_preferences?.minimumDiscountPercent ?? 30,
+          freeGifts: preferences.deal_preferences?.freeGifts ?? false,
+          freeformInstruction: preferences.freeform_instruction ?? "",
+        }
+      : {
+          targetRoles: ["Software Engineer"],
+          locations: [],
+          remotePreference: "either" as const,
+          targetCompanies: [],
+          immediateAlertEvents: [] as never,
+          minimumDiscountPercent: 30,
+          freeGifts: false,
+          freeformInstruction: "",
         };
 
-        if (isDealRelevant({ ...deal }, dealPrefs)) {
-          const rule = getDealMatchedRule({ ...deal }, dealPrefs);
-          await saveValuableDeal({
-            userId: emailRecord.userId,
+    // Step 3: Extract with Qwen (outside the transaction — can be slow)
+    const extractionInput =
+      emailRecord.rawBody?.trim() ||
+      emailRecord.rawMime?.toString("utf8").slice(0, 12_000) ||
+      "";
+    const extraction = await extractEmailIntent(extractionInput, prefInput);
+    const inboxProjection = buildInboxProjection(extraction);
+    logInfo("orchestrator.extracted", {
+      emailRecordId,
+      userId: emailRecord.userId,
+      domain: extraction.domain,
+      eventType: extraction.eventType,
+      modelConfidence: extraction.modelConfidence,
+      summaryLength: inboxProjection.summary.length,
+      todosCount: inboxProjection.todos.length,
+      actionButtonsCount: inboxProjection.actionButtons.length,
+      recommendedAction: inboxProjection.recommendedAction,
+    });
+
+    // Step 4: Short write transaction to persist everything
+    const { confidence, opportunityId, eventId, actionIds } =
+      await withTransaction(async (client) => {
+        if (extraction.domain === "deal" && extraction.deal) {
+          const deal = extraction.deal;
+          const dealPrefs: DealPreferences = {
+            minimumDiscountPercent: preferences?.deal_preferences?.minimumDiscountPercent ?? 30,
+            freeGifts: preferences?.deal_preferences?.freeGifts ?? false,
+            targetBrands: [],
+          };
+
+          if (isDealRelevant({ ...deal }, dealPrefs)) {
+            const rule = getDealMatchedRule({ ...deal }, dealPrefs);
+            await saveValuableDeal({
+              userId: emailRecord.userId,
+              emailRecordId,
+              brand: deal.brand,
+              offerType: deal.offerType,
+              discountPercent: deal.discountPercent,
+              freeGift: deal.freeGift,
+              expiresAt: deal.expiresAt,
+              offerValue: deal.offerValue,
+              matchedRule: rule,
+              relevanceReason: `${rule}: ${deal.evidence[0] ?? ""}`,
+            });
+          }
+
+          await client.query(
+            `UPDATE email_records
+             SET processing_status = 'completed', message_domain = 'deal',
+                 structured_extraction = $1, category = $2, summary = $3,
+                 todos = $4, action_buttons = $5, recommended_action = $6
+             WHERE id = $7`,
+            [
+              JSON.stringify(extraction),
+              inboxProjection.category,
+              inboxProjection.summary,
+              JSON.stringify(inboxProjection.todos),
+              JSON.stringify(inboxProjection.actionButtons),
+              inboxProjection.recommendedAction,
+              emailRecordId,
+            ],
+          );
+          logInfo("orchestrator.persisted", {
             emailRecordId,
-            brand: deal.brand,
-            offerType: deal.offerType,
-            discountPercent: deal.discountPercent,
-            freeGift: deal.freeGift,
-            expiresAt: deal.expiresAt,
-            offerValue: deal.offerValue,
-            matchedRule: rule,
-            relevanceReason: `${rule}: ${deal.evidence[0] ?? ""}`,
+            domain: "deal",
+            category: inboxProjection.category,
+            summaryLength: inboxProjection.summary.length,
           });
+          return {
+            confidence: null as number | null,
+            opportunityId: null as string | null,
+            eventId: null as string | null,
+            actionIds: [] as string[],
+          };
         }
 
-        await client.query(
-          `UPDATE email_records
-           SET processing_status = 'completed', message_domain = 'deal',
-               structured_extraction = $1, updated_at = now()
-           WHERE id = $2`,
-          [JSON.stringify(extraction), emailRecordId],
-        );
-        return {
-          confidence: null as number | null,
-          opportunityId: null as string | null,
-          eventId: null as string | null,
-          actionIds: [] as string[],
-        };
-      }
-
-      if (extraction.domain !== "job" || !extraction.eventType) {
-        // Mark as completed — not a job email
-        await client.query(
-          `UPDATE email_records
-           SET processing_status = 'completed', message_domain = $1,
-               structured_extraction = $2, updated_at = now()
-           WHERE id = $3`,
-          [extraction.domain, JSON.stringify(extraction), emailRecordId],
-        );
-        return {
-          confidence: null as number | null,
-          opportunityId: null as string | null,
-          eventId: null as string | null,
-          actionIds: [] as string[],
-        };
-      }
+        if (extraction.domain !== "job" || !extraction.eventType) {
+          // Mark as completed — not a job email
+          await client.query(
+            `UPDATE email_records
+             SET processing_status = 'completed', message_domain = $1,
+                 structured_extraction = $2, category = $3, summary = $4,
+                 todos = $5, action_buttons = $6, recommended_action = $7
+             WHERE id = $8`,
+            [
+              extraction.domain,
+              JSON.stringify(extraction),
+              inboxProjection.category,
+              inboxProjection.summary,
+              JSON.stringify(inboxProjection.todos),
+              JSON.stringify(inboxProjection.actionButtons),
+              inboxProjection.recommendedAction,
+              emailRecordId,
+            ],
+          );
+          logInfo("orchestrator.persisted", {
+            emailRecordId,
+            domain: extraction.domain,
+            category: inboxProjection.category,
+            summaryLength: inboxProjection.summary.length,
+          });
+          return {
+            confidence: null as number | null,
+            opportunityId: null as string | null,
+            eventId: null as string | null,
+            actionIds: [] as string[],
+          };
+        }
 
       // Calculate composite confidence
       const candidates = await findOpportunityCandidates(client, emailRecord.userId);
@@ -288,7 +407,7 @@ export async function processStoredEmail(
         await updateOpportunityProjection(client, opportunityId);
       }
 
-      // Process suggested actions
+        // Process suggested actions
       for (const action of extraction.suggestedActions) {
         try {
           validateToolCall(action);
@@ -303,6 +422,10 @@ export async function processStoredEmail(
           actionIds.push(actionId);
         } catch {
           // Invalid tool — silently skip (do not record)
+          logWarn("orchestrator.invalid_suggested_action", {
+            emailRecordId,
+            actionType: action.type,
+          });
         }
       }
 
@@ -310,22 +433,48 @@ export async function processStoredEmail(
       await client.query(
         `UPDATE email_records
          SET processing_status = 'completed', message_domain = $1,
-             structured_extraction = $2, updated_at = now()
-         WHERE id = $3`,
-        [extraction.domain, JSON.stringify(extraction), emailRecordId],
+             structured_extraction = $2, category = $3, summary = $4,
+             todos = $5, action_buttons = $6, recommended_action = $7
+         WHERE id = $8`,
+        [
+          extraction.domain,
+          JSON.stringify(extraction),
+          inboxProjection.category,
+          inboxProjection.summary,
+          JSON.stringify(inboxProjection.todos),
+          JSON.stringify(inboxProjection.actionButtons),
+          inboxProjection.recommendedAction,
+          emailRecordId,
+        ],
       );
+      logInfo("orchestrator.persisted", {
+        emailRecordId,
+        domain: extraction.domain,
+        category: inboxProjection.category,
+        summaryLength: inboxProjection.summary.length,
+      });
 
       return { confidence, opportunityId, eventId, actionIds };
     });
 
-  log("info", { emailRecordId, domain: extraction.domain, confidence, status: "completed" });
-  return {
-    emailRecordId,
-    domain: extraction.domain,
-    confidence,
-    opportunityId,
-    eventId,
-    actions: actionIds,
-    status: opportunityId ? "completed" : "human_review",
-  };
+    logInfo("orchestrator.completed", {
+      emailRecordId,
+      domain: extraction.domain,
+      confidence,
+      status: opportunityId ? "completed" : "human_review",
+      actionsCount: actionIds.length,
+    });
+    return {
+      emailRecordId,
+      domain: extraction.domain,
+      confidence,
+      opportunityId,
+      eventId,
+      actions: actionIds,
+      status: opportunityId ? "completed" : "human_review",
+    };
+  } catch (error) {
+    logError("orchestrator.failed", error, { emailRecordId });
+    throw error;
+  }
 }

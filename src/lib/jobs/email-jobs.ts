@@ -133,6 +133,20 @@ export async function completeJob(
   );
 }
 
+export async function completeJobForEmailRecord(
+  client: PoolClient,
+  emailRecordId: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE email_processing_jobs
+     SET status = 'completed', lease_owner = null, lease_expires_at = null,
+         updated_at = now()
+     WHERE email_record_id = $1
+       AND status IN ('pending', 'processing')`,
+    [emailRecordId],
+  );
+}
+
 export async function failJob(
   client: PoolClient,
   jobId: string,

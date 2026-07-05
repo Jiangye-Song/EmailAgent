@@ -21,16 +21,38 @@ export type EmailRecord = {
   subject: string;
   sender: string;
   received_at: Date | null;
-  category: "newsletter" | "alert" | "personal" | "promotion" | "other";
+  category: string;
   summary: string;
   todos: string[];
   action_buttons?: EmailActionButton[];
   is_read: boolean;
   is_starred: boolean;
+  is_priority: boolean;
   recommended_action: "archive" | "keep" | "draft_reply";
   action_status: "pending" | "approved" | "rejected" | "executed";
   raw_body: string | null;
   draft_body?: string | null;
   calendar_events?: CalendarEvent[];
   processed_at: Date;
+};
+
+export type UserCategory = string;
+
+export type UserCategoryModel = {
+  id: string;
+  user_id: string;
+  category_key: string;
+  display_name: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type UserCategoryPrompt = {
+  id: string;
+  user_id: string;
+  category: string;
+  prompt: string;
+  created_at: Date;
+  updated_at: Date;
 };

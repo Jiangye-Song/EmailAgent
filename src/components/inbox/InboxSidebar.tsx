@@ -20,24 +20,44 @@ import SellRoundedIcon from "@mui/icons-material/SellRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ArchiveRoundedIcon from "@mui/icons-material/ArchiveRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
 
-const CATEGORIES = [
+type CategoryItem = {
+  key: string;
+  label: string;
+  icon: typeof MailRoundedIcon;
+};
+
+const CORE_CATEGORIES: CategoryItem[] = [
   { key: "all", label: "All", icon: MailRoundedIcon },
   { key: "starred", label: "Starred", icon: StarRoundedIcon },
-  { key: "alert", label: "Alerts", icon: NotificationsActiveRoundedIcon },
-  { key: "personal", label: "Personal", icon: PersonRoundedIcon },
-  { key: "newsletter", label: "Newsletter", icon: SellRoundedIcon },
-  { key: "promotion", label: "Promotions", icon: CampaignRoundedIcon },
-  { key: "other", label: "Other", icon: ArchiveRoundedIcon },
-] as const;
+];
+
+const ICON_BY_CATEGORY: Record<string, typeof MailRoundedIcon> = {
+  alert: NotificationsActiveRoundedIcon,
+  personal: PersonRoundedIcon,
+  newsletter: SellRoundedIcon,
+  promotion: CampaignRoundedIcon,
+  other: ArchiveRoundedIcon,
+};
 
 type Props = {
   categoryCounts: Record<string, number>;
+  categories: { categoryKey: string; displayName: string }[];
   selectedCategory: string;
   onSelectCategory: (cat: string) => void;
 };
 
-export function InboxSidebar({ categoryCounts, selectedCategory, onSelectCategory }: Props) {
+export function InboxSidebar({ categoryCounts, categories, selectedCategory, onSelectCategory }: Props) {
+  const items: CategoryItem[] = [
+    ...CORE_CATEGORIES,
+    ...categories.map((category) => ({
+      key: category.categoryKey,
+      label: category.displayName,
+      icon: ICON_BY_CATEGORY[category.categoryKey] ?? CategoryRoundedIcon,
+    })),
+  ];
+
   return (
     <Stack sx={{ height: "100%", bgcolor: "background.paper" }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", px: 2, py: 2 }}>
@@ -57,7 +77,7 @@ export function InboxSidebar({ categoryCounts, selectedCategory, onSelectCategor
       <Divider />
 
       <List dense sx={{ flex: 1, py: 1 }}>
-        {CATEGORIES.map(({ key, label, icon: Icon }) => {
+        {items.map(({ key, label, icon: Icon }) => {
           const count = categoryCounts[key] ?? 0;
           const isSelected = selectedCategory === key;
           return (

@@ -27,10 +27,11 @@ import type { EmailRecord } from "@/types/db";
 type Props = {
   records: EmailRecord[];
   categoryCounts: Record<string, number>;
+  userCategories: { categoryKey: string; displayName: string }[];
   forwardingAddress: string;
 };
 
-export function InboxLayout({ records, categoryCounts, forwardingAddress }: Props) {
+export function InboxLayout({ records, categoryCounts, userCategories, forwardingAddress }: Props) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
@@ -111,6 +112,7 @@ export function InboxLayout({ records, categoryCounts, forwardingAddress }: Prop
         >
           <InboxSidebar
             categoryCounts={categoryCounts}
+            categories={userCategories}
             selectedCategory={selectedCategory}
             onSelectCategory={(cat) => {
               setSelectedCategory(cat);

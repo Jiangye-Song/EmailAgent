@@ -2,9 +2,11 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
+import { CategoryPromptsEditor } from "@/components/settings/CategoryPromptsEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
 import { SenderWhitelist } from "@/components/settings/SenderWhitelist";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
+import { DEFAULT_CATEGORY_PROMPTS } from "@/lib/ai/category-prompts";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import Link from "next/link";
 import {
@@ -52,14 +54,43 @@ async function getSenderWhitelist(userId: string) {
   }));
 }
 
+async function getUserCategoryPrompts(
+  userId: string,
+): Promise<{ categoryKey: string; displayName: string; prompt: string }[]> {
+  const { rows } = await pool.query<{
+    category_key: string;
+    display_name: string;
+    prompt: string | null;
+  }>(
+    `SELECT uc.category_key, uc.display_name, ucp.prompt
+     FROM user_categories uc
+     LEFT JOIN user_category_prompts ucp
+       ON ucp.user_id = uc.user_id
+      AND ucp.category = uc.category_key
+     WHERE uc.user_id = $1 AND uc.is_active = true
+     ORDER BY uc.created_at ASC`,
+    [userId],
+  );
+
+  return rows.map((row) => ({
+    categoryKey: row.category_key,
+    displayName: row.display_name,
+    prompt:
+      row.prompt ??
+      DEFAULT_CATEGORY_PROMPTS[row.category_key] ??
+      "Use neutral analysis and extract practical next steps.",
+  }));
+}
+
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [rules, forwardingAddress, whitelistEntries] = await Promise.all([
+  const [rules, forwardingAddress, whitelistEntries, categoryPrompts] = await Promise.all([
     getUserRules(session.user.id),
     ensureForwardingAddress(session.user.id),
     getSenderWhitelist(session.user.id),
+    getUserCategoryPrompts(session.user.id),
   ]);
 
   return (
@@ -124,6 +155,23 @@ export default async function SettingsPage() {
                 </Box>
                 <Divider />
                 <SenderWhitelist initialEntries={whitelistEntries} />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" sx={{ mb: 0.5 }}>
+                    Category prompts
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Customize how AI should analyze each category after the first-stage classifier picks a category.
+                  </Typography>
+                </Box>
+                <Divider />
+                <CategoryPromptsEditor initialCategories={categoryPrompts} />
               </Stack>
             </CardContent>
           </Card>

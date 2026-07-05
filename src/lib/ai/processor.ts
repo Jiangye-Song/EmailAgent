@@ -2,6 +2,7 @@ import { generateObject, embed } from "ai";
 import { z } from "zod";
 import { qwenFlash, qwenPlus, qwenMax, qwenEmbedding } from "@/lib/ai/qwen";
 import { pool } from "@/lib/db";
+import { DEFAULT_CATEGORY_PROMPTS } from "@/lib/ai/category-prompts";
 import type {
   Email,
   ProcessedEmail,
@@ -9,16 +10,16 @@ import type {
   RecommendedAction,
   ProcessedActionButton,
 } from "@/types/email";
+import type { CalendarEvent, UserCategory } from "@/types/db";
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
-const CategorySchema = z.enum([
-  "newsletter",
-  "alert",
-  "personal",
-  "promotion",
-  "other",
-]);
+type CategoryPromptMap = Record<UserCategory, string>;
+
+type UserCategoryConfig = {
+  key: string;
+  label: string;
+};
 
 function normalizeButtonTone(
   tone: string | undefined,
@@ -95,6 +96,20 @@ function normalizeActionButtons(rawButtons: RawActionButton[]): ProcessedActionB
   return buttons;
 }
 
+function mergeActionButtons(buttons: ProcessedActionButton[]): ProcessedActionButton[] {
+  const seen = new Set<string>();
+  const merged: ProcessedActionButton[] = [];
+
+  for (const button of buttons) {
+    const key = `${button.kind}|${button.href ?? ""}|${button.label.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(button);
+  }
+
+  return merged;
+}
+
 const AnalysisSchema = z.object({
   summary: z
     .string()
@@ -128,6 +143,25 @@ const AnalysisSchema = z.object({
     .describe(
       "archive = no action needed, keep = important to retain, draft_reply = needs a response",
     ),
+  draftReply: z
+    .string()
+    .optional()
+    .describe("Optional draft response body if replying is helpful"),
+  calendarEvents: z
+    .array(
+      z.object({
+        title: z.string(),
+        start: z.string(),
+        end: z.string().optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+      }),
+    )
+    .optional()
+    .describe("Calendar-like events inferred from the email content"),
+  isPriority: z
+    .boolean()
+    .describe("True if this email deserves high-priority visual emphasis in the inbox"),
 });
 
 const RulesSchema = z.object({
@@ -136,12 +170,66 @@ const RulesSchema = z.object({
     .describe("Exact text of each rule that applies to this email"),
 });
 
+function buildRulesContext(userRules: string[]): string {
+  if (userRules.length === 0) {
+    return "No user rules were provided.";
+  }
+
+  return `User rules:\n${userRules.map((rule, index) => `${index + 1}. ${rule}`).join("\n")}`;
+}
+
+async function loadUserCategoryPrompts(userId: string): Promise<CategoryPromptMap> {
+  const prompts: CategoryPromptMap = { ...DEFAULT_CATEGORY_PROMPTS };
+
+  try {
+    const { rows } = await pool.query<{ category: UserCategory; prompt: string }>(
+      `SELECT category, prompt
+       FROM user_category_prompts
+       WHERE user_id = $1`,
+      [userId],
+    );
+
+    for (const row of rows) {
+      if (!row.prompt?.trim()) continue;
+      prompts[row.category] = row.prompt;
+    }
+  } catch (error) {
+    console.warn("[processor] Could not load category prompts, using defaults:", error);
+  }
+
+  return prompts;
+}
+
+async function loadUserCategories(userId: string): Promise<UserCategoryConfig[]> {
+  const { rows } = await pool.query<{ category_key: string; display_name: string }>(
+    `SELECT category_key, display_name
+     FROM user_categories
+     WHERE user_id = $1 AND is_active = true
+     ORDER BY created_at ASC`,
+    [userId],
+  );
+
+  if (rows.length === 0) {
+    return [
+      { key: "newsletter", label: "Newsletter" },
+      { key: "alert", label: "Alerts" },
+      { key: "personal", label: "Personal" },
+      { key: "promotion", label: "Promotions" },
+      { key: "other", label: "Other" },
+    ];
+  }
+
+  return rows.map((row) => ({ key: row.category_key, label: row.display_name }));
+}
+
 // ─── Single email processing ──────────────────────────────────────────────────
 
 async function processOneEmail(
   email: Email,
   userId: string,
   userRules: string[],
+  categoryPrompts: CategoryPromptMap,
+  categories: UserCategoryConfig[],
 ): Promise<ProcessedEmail> {
   const urlMatches = Array.from(
     new Set(email.body.match(/https?:\/\/[^\s)\]]+/g) ?? []),
@@ -156,35 +244,52 @@ async function processOneEmail(
     email.body.slice(0, 3_000),
   ].join("\n");
 
-  // ── Step 1 + 2 + 3 run concurrently ─────────────────────────────────────
-  const [classifyResult, analysisResult, embedResult] = await Promise.all([
-    // qwen3.6-flash — cheapest, fastest, good enough for a 5-way classification
-    generateObject({
-      model: qwenFlash,
-      schema: z.object({ category: CategorySchema }),
-      system:
-        'Classify the email. Return JSON with exactly this shape: {"category": "<value>"}. ' +
-        'The value must be one of: newsletter, alert, personal, promotion, other.',
-      prompt: emailText,
-    }),
+  const rulesContext = buildRulesContext(userRules);
 
-    // qwen3.7-plus — balanced: summarise + todos + action
+  // ── Stage 1 agent: category classification ───────────────────────────────
+  const allowedCategoryKeys = categories.map((category) => category.key);
+
+  const classifyResult = await generateObject({
+    model: qwenFlash,
+    schema: z.object({ category: z.string() }),
+    system:
+      "You are stage 1 classification agent. Classify the email into exactly one of the allowed category keys. " +
+      "Use user rules as additional context.",
+    prompt:
+      `${rulesContext}\n\nAllowed categories:\n` +
+      categories.map((category) => `- ${category.key}: ${category.label}`).join("\n") +
+      `\n\nEmail:\n${emailText}`,
+  });
+
+  const rawCategory = classifyResult.object.category.trim().toLowerCase();
+  const category = (
+    allowedCategoryKeys.includes(rawCategory)
+      ? rawCategory
+      : allowedCategoryKeys.includes("other")
+        ? "other"
+        : allowedCategoryKeys[0]
+  ) as EmailCategory;
+  const categoryPrompt = categoryPrompts[category as UserCategory] ?? DEFAULT_CATEGORY_PROMPTS.other;
+
+  // ── Stage 2 agent + embedding in parallel ────────────────────────────────
+  const [analysisResult, embedResult] = await Promise.all([
     generateObject({
       model: qwenPlus,
       schema: AnalysisSchema,
       system:
-        'Analyse the email. Return JSON with exactly these fields:\n' +
-        '- "summary": string — markdown allowed, max 2 sentences describing what the email is about\n' +
-        '- "todos": string[] — markdown allowed action items, empty array if none\n' +
-        '- "actionButtons": optional array. Each item should provide exactly:\n' +
-        '  - "actionLabel": text label for button\n' +
-        '  - "actionLink": URL or one of the exact action tokens: star, remove, reply\n' +
-        '  - "actionColor": style hint like default, success, warning, danger, accent\n' +
-        'If actionLink is star/remove/reply, do not invent URLs.\n' +
-        '- "recommendedAction": must be exactly one of "archive", "keep", or "draft_reply"\n' +
-        '  archive = no action needed | keep = important to retain | draft_reply = needs a response\n' +
-        'Prefer URL buttons when clear CTA links exist in the email.',
-      prompt: emailText,
+        "You are stage 2 category-specialist analysis agent. Return JSON only.\n\n" +
+        `Selected category: ${category}.\n` +
+        `Category-specific prompt:\n${categoryPrompt}\n\n` +
+        `${rulesContext}\n\n` +
+        'Required fields:\n' +
+        '- summary: max 2 sentences\n' +
+        '- todos: concrete action items array\n' +
+        '- actionButtons: optional array with actionLabel/actionLink/actionColor\n' +
+        '- recommendedAction: archive|keep|draft_reply\n' +
+        '- draftReply: optional string\n' +
+        '- calendarEvents: array of inferred events (title, start, optional end/description/location)\n' +
+        '- isPriority: boolean; true when this email should visually stand out as priority',
+      prompt: `Email:\n${emailText}`,
     }),
 
     // text-embedding-v4 — 1024-dim embedding for pgvector semantic search
@@ -194,7 +299,7 @@ async function processOneEmail(
     }),
   ]);
 
-  // ── Step 4: rule evaluation — only if user has rules (qwen3.7-max) ────────
+  // ── Optional explicit matched-rules pass for transparency ─────────────────
   let ruleMatches: string[] = [];
   if (userRules.length > 0) {
     try {
@@ -205,7 +310,7 @@ async function processOneEmail(
           'Given a list of user-defined email rules, identify which rules apply to this email. ' +
           'Return JSON with exactly this shape: {"matchedRules": ["<exact rule text>", ...]}. ' +
           'Only include rules that clearly apply. Use empty array if none match.',
-        prompt: `Rules:\n${userRules.map((r, i) => `${i + 1}. ${r}`).join("\n")}\n\nEmail:\n${emailText}`,
+        prompt: `${rulesContext}\n\nCategory: ${category}\n\nEmail:\n${emailText}`,
       });
       ruleMatches = object.matchedRules;
     } catch (err) {
@@ -219,10 +324,11 @@ async function processOneEmail(
 
   const processed: ProcessedEmail = {
     emailId: email.id,
-    category: classifyResult.object.category as EmailCategory,
+    category,
+    isPriority: analysisResult.object.isPriority,
     summary: analysisResult.object.summary,
     todos: analysisResult.object.todos,
-    actionButtons: [
+    actionButtons: mergeActionButtons([
       ...(analysisResult.object.actionButtons ?? []),
       ...urlMatches.map<ProcessedActionButton>((href, index) => ({
         label: index === 0 ? "Open Link" : `Open Link ${index + 1}`,
@@ -230,9 +336,11 @@ async function processOneEmail(
         href,
         tone: "accent",
       })),
-    ],
+    ]),
     recommendedAction: analysisResult.object
       .recommendedAction as RecommendedAction,
+    draftBody: analysisResult.object.draftReply,
+    calendarEvents: (analysisResult.object.calendarEvents ?? []) as CalendarEvent[],
     ruleMatches: ruleMatches.length > 0 ? ruleMatches : undefined,
   };
 
@@ -242,9 +350,13 @@ async function processOneEmail(
   await pool.query(
     `INSERT INTO email_records (
        user_id, message_id, subject, sender, received_at,
-       category, summary, todos, action_buttons, recommended_action,
-       raw_body, embedding, attachment_urls
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
+       category, summary, todos, action_buttons, is_priority, recommended_action,
+       raw_body, draft_body, calendar_events, embedding, attachment_urls
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9, $10, $11,
+       $12, $13, $14, $15::vector, $16
+     )
      ON CONFLICT DO NOTHING`,
     [
       userId,
@@ -256,8 +368,11 @@ async function processOneEmail(
       processed.summary,
       JSON.stringify(processed.todos),
       JSON.stringify(processed.actionButtons ?? []),
+      processed.isPriority,
       processed.recommendedAction,
       email.body,
+      processed.draftBody ?? null,
+      JSON.stringify(processed.calendarEvents ?? []),
       vectorLiteral,
       JSON.stringify(
         email.attachments.map((a) => ({
@@ -289,8 +404,13 @@ export async function processEmailsBatched(
   userId: string,
   userRules: string[] = [],
 ): Promise<BatchResult> {
+  const [categoryPrompts, userCategories] = await Promise.all([
+    loadUserCategoryPrompts(userId),
+    loadUserCategories(userId),
+  ]);
+
   const settled = await Promise.allSettled(
-    emails.map((email) => processOneEmail(email, userId, userRules)),
+    emails.map((email) => processOneEmail(email, userId, userRules, categoryPrompts, userCategories)),
   );
 
   const results: ProcessedEmail[] = [];

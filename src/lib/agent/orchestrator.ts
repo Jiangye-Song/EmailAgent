@@ -69,7 +69,36 @@ function formatEventType(value: string | null): string {
   return value.replaceAll("_", " ");
 }
 
-function buildInboxProjection(extraction: JobEmailExtraction): InboxProjection {
+function extractUrls(text: string): string[] {
+  return Array.from(new Set(text.match(/https?:\/\/[^\s)\]]+/g) ?? [])).slice(0, 3);
+}
+
+function deriveCategoryFromText(text: string): EmailCategory {
+  const value = text.toLowerCase();
+  if (/unsubscribe|weekly update|digest|newsletter/.test(value)) return "newsletter";
+  if (/discount|coupon|promo|offer|sale|limited time|free gift/.test(value)) return "promotion";
+  if (/action required|verify|security alert|delivery status|payment due|failed|deadline|urgent/.test(value)) return "alert";
+  if (/hi\s|hello|regards|thanks|let me know|can we|catch up/.test(value)) return "personal";
+  return "other";
+}
+
+function deriveActionItemsFromText(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const candidates = lines.filter((line) =>
+    /(please|action required|respond|reply|complete|verify|confirm|pay|submit|review|apply|schedule|update)/i.test(line),
+  );
+
+  return Array.from(new Set(candidates)).slice(0, 3);
+}
+
+function buildInboxProjection(
+  extraction: JobEmailExtraction,
+  sourceText: string,
+): InboxProjection {
   if (extraction.domain === "deal" && extraction.deal) {
     const deal = extraction.deal;
     const offerText = deal.discountPercent
@@ -104,6 +133,23 @@ function buildInboxProjection(extraction: JobEmailExtraction): InboxProjection {
       todos.push(`Key evidence: ${extraction.evidence[0]}`);
     }
 
+    for (const action of extraction.suggestedActions) {
+      if (action.type === "prepare_reply") {
+        todos.push("Review and send a reply.");
+      } else if (action.type === "schedule_reminder") {
+        todos.push("Set a reminder for this update.");
+      } else if (action.type === "prepare_calendar_event") {
+        todos.push("Review calendar event details.");
+      }
+    }
+
+    const urlButtons: ProcessedActionButton[] = extractUrls(sourceText).map((href, index) => ({
+      label: index === 0 ? "Open Link" : `Open Link ${index + 1}`,
+      kind: "url",
+      href,
+      tone: "accent",
+    }));
+
     const recommendedAction: RecommendedAction = extraction.eventType === "rejection_received"
       ? "archive"
       : extraction.eventType === "recruiter_contact" ||
@@ -115,18 +161,31 @@ function buildInboxProjection(extraction: JobEmailExtraction): InboxProjection {
     return {
       category: "alert",
       summary,
-      todos,
-      actionButtons: [],
+      todos: Array.from(new Set(todos)).slice(0, 5),
+      actionButtons: urlButtons,
       recommendedAction,
     };
   }
 
+  const category = deriveCategoryFromText(sourceText);
+  const textTodos = deriveActionItemsFromText(sourceText);
+  const urlButtons: ProcessedActionButton[] = extractUrls(sourceText).map((href, index) => ({
+    label: index === 0 ? "Open Link" : `Open Link ${index + 1}`,
+    kind: "url",
+    href,
+    tone: "accent",
+  }));
+
+  const summary = extraction.evidence[0] ?? "Email received and processed.";
+  const recommendedAction: RecommendedAction =
+    category === "alert" ? "keep" : category === "personal" ? "draft_reply" : "archive";
+
   return {
-    category: "other",
-    summary: extraction.evidence[0] ?? "Email received and processed.",
-    todos: [],
-    actionButtons: [],
-    recommendedAction: "archive",
+    category,
+    summary,
+    todos: textTodos,
+    actionButtons: urlButtons,
+    recommendedAction,
   };
 }
 
@@ -179,7 +238,7 @@ export async function processStoredEmail(
       emailRecord.rawMime?.toString("utf8").slice(0, 12_000) ||
       "";
     const extraction = await extractEmailIntent(extractionInput, prefInput);
-    const inboxProjection = buildInboxProjection(extraction);
+    const inboxProjection = buildInboxProjection(extraction, extractionInput);
     logInfo("orchestrator.extracted", {
       emailRecordId,
       userId: emailRecord.userId,

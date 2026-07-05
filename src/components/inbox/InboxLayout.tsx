@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   alpha,
   AppBar,
   Box,
   Drawer,
   IconButton,
+  InputAdornment,
+  TextField,
   Stack,
   Toolbar,
   Tooltip,
@@ -16,6 +19,8 @@ import {
   useTheme,
 } from "@mui/material";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import ClearRoundedIcon from "@mui/icons-material/ClearRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import { InboxSidebar } from "@/components/inbox/InboxSidebar";
@@ -26,18 +31,38 @@ import type { EmailRecord } from "@/types/db";
 
 type Props = {
   records: EmailRecord[];
+  searchQuery: string;
   categoryCounts: Record<string, number>;
   userCategories: { categoryKey: string; displayName: string }[];
   forwardingAddress: string;
 };
 
-export function InboxLayout({ records, categoryCounts, userCategories, forwardingAddress }: Props) {
+export function InboxLayout({
+  records,
+  searchQuery,
+  categoryCounts,
+  userCategories,
+  forwardingAddress,
+}: Props) {
   const theme = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
   const isDark = theme.palette.mode === "dark";
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState(searchQuery);
+
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (selectedId && !records.some((record) => record.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [records, selectedId]);
 
   const filtered =
     selectedCategory === "all"
@@ -49,6 +74,20 @@ export function InboxLayout({ records, categoryCounts, userCategories, forwardin
   const selectedRecord = records.find((r) => r.id === selectedId) ?? null;
   const sideWidth = 220;
   const listWidth = 360;
+
+  function submitSearch() {
+    const nextQuery = searchInput.trim();
+    const params = new URLSearchParams();
+
+    if (nextQuery) {
+      params.set("q", nextQuery);
+    }
+
+    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, {
+      scroll: false,
+    });
+    setSelectedId(null);
+  }
 
   return (
     <Box
@@ -70,26 +109,88 @@ export function InboxLayout({ records, categoryCounts, userCategories, forwardin
           bgcolor: alpha(theme.palette.background.paper, isDark ? 0.85 : 0.75),
         }}
       >
-        <Toolbar>
-          {!isDesktop && (
-            <IconButton
-              color="inherit"
-              edge="start"
-              onClick={() => setSidebarOpen(true)}
-              sx={{ mr: 1 }}
-            >
-              <MenuRoundedIcon />
-            </IconButton>
-          )}
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Email Digest Inbox
-          </Typography>
-          <Tooltip title="Settings">
-            <IconButton component={Link} href="/settings" color="inherit">
-              <SettingsRoundedIcon />
-            </IconButton>
-          </Tooltip>
-          <ThemeModeToggle />
+        <Toolbar sx={{ gap: 1.5, flexWrap: "wrap", py: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", minWidth: 0, flex: { xs: "1 1 100%", md: "0 0 auto" } }}
+          >
+            {!isDesktop && (
+              <IconButton
+                color="inherit"
+                edge="start"
+                onClick={() => setSidebarOpen(true)}
+                sx={{ mr: 0.5 }}
+              >
+                <MenuRoundedIcon />
+              </IconButton>
+            )}
+            <Typography variant="h6" noWrap sx={{ fontWeight: 700 }}>
+              Email Digest Inbox
+            </Typography>
+          </Stack>
+
+          <Box
+            component="form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitSearch();
+            }}
+            sx={{
+              flex: { xs: "1 1 100%", md: 1 },
+              minWidth: { xs: "100%", md: 320 },
+              order: { xs: 3, md: 0 },
+            }}
+          >
+            <TextField
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search emails semantically"
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchInput ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label="Clear search"
+                        onClick={() => {
+                          setSearchInput("");
+                          router.replace(pathname, { scroll: false });
+                          setSelectedId(null);
+                        }}
+                      >
+                        <ClearRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : undefined,
+                },
+              }}
+              sx={{
+                maxWidth: { md: 520 },
+                ml: { md: 2 },
+                "& .MuiInputBase-root": {
+                  borderRadius: 999,
+                  bgcolor: alpha(theme.palette.background.paper, isDark ? 0.5 : 0.9),
+                },
+              }}
+            />
+          </Box>
+
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", ml: { md: "auto" } }}>
+            <Tooltip title="Settings">
+              <IconButton component={Link} href="/settings" color="inherit">
+                <SettingsRoundedIcon />
+              </IconButton>
+            </Tooltip>
+            <ThemeModeToggle />
+          </Stack>
         </Toolbar>
       </AppBar>
 
@@ -134,6 +235,13 @@ export function InboxLayout({ records, categoryCounts, userCategories, forwardin
           <EmailList
             records={filtered}
             selectedId={selectedId}
+            emptyMessage={
+              searchQuery
+                ? `No emails matched "${searchQuery}".`
+                : selectedCategory === "all"
+                  ? "No emails in your inbox yet."
+                  : `No emails in ${selectedCategory}.`
+            }
             onSelect={(id) => {
               const selected = records.find((r) => r.id === id);
               setSelectedId(id);

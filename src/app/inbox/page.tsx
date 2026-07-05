@@ -1,8 +1,10 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { embed } from "ai";
 import { pool } from "@/lib/db";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { InboxLayout } from "@/components/inbox/InboxLayout";
+import { qwenEmbedding } from "@/lib/ai/qwen";
 import type { EmailRecord } from "@/types/db";
 
 type UserCategoryRow = {
@@ -31,6 +33,30 @@ async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
      LIMIT 200`,
     [userId],
   );
+  return rows;
+}
+
+async function searchEmailRecords(userId: string, searchQuery: string): Promise<EmailRecord[]> {
+  const { embedding } = await embed({
+    model: qwenEmbedding,
+    value: searchQuery,
+  });
+
+  const vectorLiteral = `[${embedding.join(",")}]`;
+
+  const { rows } = await pool.query<EmailRecord>(
+    `SELECT id, message_id, subject, sender, received_at,
+            COALESCE(NULLIF(category, ''), 'other') AS category,
+            todos, action_buttons, is_read, is_starred,
+            is_priority, recommended_action, action_status, raw_body,
+            draft_body, calendar_events, processed_at
+     FROM email_records
+     WHERE user_id = $1 AND embedding IS NOT NULL
+     ORDER BY embedding <=> $2::vector ASC
+     LIMIT 200`,
+    [userId, vectorLiteral],
+  );
+
   return rows;
 }
 
@@ -85,25 +111,49 @@ function buildSidebarCategories(
   return fromUser;
 }
 
-export default async function InboxPage() {
+type InboxPageProps = {
+  searchParams?:
+    | Promise<{
+        q?: string | string[];
+      }>
+    | {
+        q?: string | string[];
+      };
+};
+
+function normalizeSearchQuery(value: string | string[] | undefined): string {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return rawValue?.trim() ?? "";
+}
+
+export default async function InboxPage({ searchParams }: InboxPageProps) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  const resolvedSearchParams = await (searchParams ?? {});
+  const searchQuery = normalizeSearchQuery(resolvedSearchParams.q);
 
   const onboardingCompleted = await getOnboardingCompleted(session.user.id);
   if (!onboardingCompleted) redirect("/onboarding");
 
-  const [records, forwardingAddress, userCategories] = await Promise.all([
+  const [allRecords, forwardingAddress, userCategories] = await Promise.all([
     getEmailRecords(session.user.id),
     ensureForwardingAddress(session.user.id),
     getUserCategories(session.user.id),
   ]);
 
-  const categoryCounts = buildCategoryCounts(records);
+  const records =
+    searchQuery.length >= 2
+      ? await searchEmailRecords(session.user.id, searchQuery)
+      : allRecords;
+
+  const categoryCounts = buildCategoryCounts(allRecords);
   const sidebarCategories = buildSidebarCategories(userCategories, categoryCounts);
 
   return (
     <InboxLayout
       records={records}
+      searchQuery={searchQuery}
       categoryCounts={categoryCounts}
       userCategories={sidebarCategories}
       forwardingAddress={forwardingAddress}

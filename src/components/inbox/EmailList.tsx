@@ -32,10 +32,11 @@ function categoryChipColor(category: string): "error" | "primary" | "secondary" 
 type Props = {
   records: EmailRecord[];
   selectedId: string | null;
+  emptyMessage: string;
   onSelect: (id: string) => void;
 };
 
-export function EmailList({ records, selectedId, onSelect }: Props) {
+export function EmailList({ records, selectedId, emptyMessage, onSelect }: Props) {
   if (records.length === 0) {
     return (
       <Box
@@ -48,7 +49,7 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          No emails in this category.
+          {emptyMessage}
         </Typography>
       </Box>
     );

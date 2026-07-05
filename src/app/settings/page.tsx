@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
@@ -23,6 +23,7 @@ import {
 } from "@mui/material";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 
 async function getUserRules(userId: string): Promise<string[]> {
   const { rows } = await pool.query<{ rule_text: string }>(
@@ -83,6 +84,11 @@ async function getUserCategoryPrompts(
 }
 
 export default async function SettingsPage() {
+  async function handleSignOut() {
+    "use server";
+    await signOut({ redirectTo: "/login" });
+  }
+
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
@@ -116,6 +122,11 @@ export default async function SettingsPage() {
             <SettingsRoundedIcon color="primary" />
             <Typography variant="h6">Settings</Typography>
           </Stack>
+          <Box component="form" action={handleSignOut} sx={{ mr: 1 }}>
+            <Button type="submit" color="inherit" startIcon={<LogoutRoundedIcon />}>
+              Log out
+            </Button>
+          </Box>
           <Link href="/inbox" style={{ textDecoration: "none" }}>
             <Button startIcon={<ArrowBackRoundedIcon />}>Back to inbox</Button>
           </Link>

@@ -10,9 +10,10 @@ create table if not exists users (
   email               text        unique not null,
   "emailVerified"     timestamptz,
   image               text,
-  password_hash       text,                    -- bcrypt hash (null for OAuth users)
-  forwarding_address  text        unique,      -- e.g. abc12345@emailagent.top
-  created_at          timestamptz default now()
+  password_hash           text,                    -- bcrypt hash (null for OAuth users)
+  forwarding_address      text        unique,      -- e.g. abc12345@emailagent.top
+  onboarding_completed    boolean     not null default false,
+  created_at              timestamptz default now()
 );
 
 create table if not exists accounts (
@@ -144,61 +145,6 @@ drop trigger if exists trg_user_categories_updated_at on user_categories;
 create trigger trg_user_categories_updated_at
 before update on user_categories
 for each row execute function set_user_categories_updated_at();
-
-create or replace function seed_default_category_prompts()
-returns trigger as $$
-begin
-  insert into user_categories (user_id, category_key, display_name)
-  values
-    (new.id, 'newsletter', 'Newsletter'),
-    (new.id, 'alert', 'Alerts'),
-    (new.id, 'personal', 'Personal'),
-    (new.id, 'promotion', 'Promotions'),
-    (new.id, 'other', 'Other')
-  on conflict (user_id, category_key) do nothing;
-
-  insert into user_category_prompts (user_id, category, prompt)
-  values
-    (new.id, 'newsletter', 'Focus on updates, offers, and unsubscribe relevance. Keep summary concise and surface any deadlines, promo codes, or required confirmations.'),
-    (new.id, 'alert', 'Treat this as potentially urgent. Extract concrete risks, required actions, and deadlines. Mark priority true if user attention is needed soon.'),
-    (new.id, 'personal', 'Prioritize relationship context and tone. Suggest a helpful draft reply when a response is implied or requested.'),
-    (new.id, 'promotion', 'Focus on deal quality, expiry, and whether action is worthwhile. Prefer archive when value is low or irrelevant.'),
-    (new.id, 'other', 'Use neutral analysis. Focus on key facts, required actions, and practical next steps.')
-  on conflict (user_id, category) do nothing;
-  return new;
-end;
-$$ language plpgsql;
-
-drop trigger if exists trg_seed_default_category_prompts on users;
-create trigger trg_seed_default_category_prompts
-after insert on users
-for each row execute function seed_default_category_prompts();
-
-insert into user_categories (user_id, category_key, display_name)
-select u.id, c.category_key, c.display_name
-from users u
-cross join (
-  values
-    ('newsletter', 'Newsletter'),
-    ('alert', 'Alerts'),
-    ('personal', 'Personal'),
-    ('promotion', 'Promotions'),
-    ('other', 'Other')
-) as c(category_key, display_name)
-on conflict (user_id, category_key) do nothing;
-
-insert into user_category_prompts (user_id, category, prompt)
-select u.id, c.category, c.prompt
-from users u
-cross join (
-  values
-    ('newsletter', 'Focus on updates, offers, and unsubscribe relevance. Keep summary concise and surface any deadlines, promo codes, or required confirmations.'),
-    ('alert', 'Treat this as potentially urgent. Extract concrete risks, required actions, and deadlines. Mark priority true if user attention is needed soon.'),
-    ('personal', 'Prioritize relationship context and tone. Suggest a helpful draft reply when a response is implied or requested.'),
-    ('promotion', 'Focus on deal quality, expiry, and whether action is worthwhile. Prefer archive when value is low or irrelevant.'),
-    ('other', 'Use neutral analysis. Focus on key facts, required actions, and practical next steps.')
-) as c(category, prompt)
-on conflict (user_id, category) do nothing;
 
 -- Authorized senders who can forward to each user's address
 create table if not exists sender_whitelist (

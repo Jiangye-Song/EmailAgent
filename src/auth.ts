@@ -28,8 +28,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: string;
           name: string | null;
           password_hash: string | null;
+          onboarding_completed: boolean;
         }>(
-          `SELECT id, email, name, password_hash FROM users WHERE email = $1`,
+          `SELECT id, email, name, password_hash, onboarding_completed FROM users WHERE email = $1`,
           [email],
         );
 
@@ -39,19 +40,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await compare(password, user.password_hash);
         if (!valid) return null;
 
-        return { id: user.id, email: user.email, name: user.name };
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          onboarding_completed: user.onboarding_completed,
+        };
       },
     }),
   ],
 
   callbacks: {
-    // With JWT strategy, expose user.id via token.sub
-    jwt({ token, user }) {
-      if (user) token.sub = user.id;
+    async jwt({ token, user, trigger }) {
+      if (user) {
+        token.sub = user.id;
+        token.onboardingCompleted =
+          (user as { onboarding_completed?: boolean }).onboarding_completed ?? false;
+      }
+      // Re-query when the client calls update() after completing onboarding.
+      if (trigger === "update" && token.sub) {
+        const { rows } = await pool.query<{ onboarding_completed: boolean }>(
+          `SELECT onboarding_completed FROM users WHERE id = $1`,
+          [token.sub],
+        );
+        token.onboardingCompleted = rows[0]?.onboarding_completed ?? false;
+      }
       return token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      session.user.onboardingCompleted = (token.onboardingCompleted as boolean) ?? false;
       return session;
     },
   },

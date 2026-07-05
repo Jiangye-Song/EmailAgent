@@ -10,6 +10,14 @@ type UserCategoryRow = {
   displayName: string;
 };
 
+async function getOnboardingCompleted(userId: string): Promise<boolean> {
+  const { rows } = await pool.query<{ onboarding_completed: boolean }>(
+    `SELECT onboarding_completed FROM users WHERE id = $1`,
+    [userId],
+  );
+  return rows[0]?.onboarding_completed ?? false;
+}
+
 async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
   const { rows } = await pool.query<EmailRecord>(
     `SELECT id, message_id, subject, sender, received_at,
@@ -80,6 +88,9 @@ function buildSidebarCategories(
 export default async function InboxPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  const onboardingCompleted = await getOnboardingCompleted(session.user.id);
+  if (!onboardingCompleted) redirect("/onboarding");
 
   const [records, forwardingAddress, userCategories] = await Promise.all([
     getEmailRecords(session.user.id),

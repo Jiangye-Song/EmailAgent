@@ -1,0 +1,40 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+      - feat/advanced-category
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to ECS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /app/email-agent
+
+            echo "→ Pulling latest code..."
+            git pull
+
+            echo "→ Installing dependencies..."
+            pnpm install --frozen-lockfile
+
+            echo "→ Building..."
+            pnpm build
+
+            echo "→ Copying static assets..."
+            cp -r public .next/standalone/public
+            cp -r .next/static .next/standalone/.next/static
+
+            echo "→ Restarting app..."
+            pm2 restart ecosystem.config.json
+
+            echo "✓ Deploy complete"

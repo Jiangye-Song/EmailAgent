@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { pool } from "@/lib/db";
 import {
   addSenderWhitelistEntry,
+  addSenderWhitelistDomain,
   ensureForwardingAddress,
 } from "@/lib/email/forwarding-address";
 
@@ -60,7 +61,14 @@ export async function POST(req: NextRequest) {
 
   // Generate forwarding address immediately so it's ready on first login
   await ensureForwardingAddress(userId);
+
+  // Seed default whitelist: user's own email + common notification domains
+  const userDomain = normalizedEmail.split("@")[1];
   await addSenderWhitelistEntry(userId, normalizedEmail);
+  await addSenderWhitelistDomain(userId, userDomain);
+  await addSenderWhitelistDomain(userId, "google.com");
+  await addSenderWhitelistDomain(userId, "gmail.com");
+  await addSenderWhitelistDomain(userId, "googlemail.com");
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

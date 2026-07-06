@@ -1,11 +1,14 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import PostgresAdapter from "@auth/pg-adapter";
 import { compare } from "bcryptjs";
 import { pool } from "@/lib/db";
+import { skipCSRFCheck } from "@auth/core";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PostgresAdapter(pool),
+  // Required when behind a reverse proxy (Cloudflare) that strips Origin header
+  skipCSRFCheck: skipCSRFCheck as unknown as NextAuthConfig["skipCSRFCheck"],
 
   session: {
     // JWT strategy required for credentials provider

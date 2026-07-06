@@ -1,10 +1,9 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { embed } from "ai";
 import { pool } from "@/lib/db";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { InboxLayout } from "@/components/inbox/InboxLayout";
-import { qwenEmbedding } from "@/lib/ai/qwen";
+import { qwenClient, QWEN_EMBEDDING } from "@/lib/ai/qwen";
 import type { EmailRecord } from "@/types/db";
 
 type UserCategoryRow = {
@@ -24,7 +23,7 @@ async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
   const { rows } = await pool.query<EmailRecord>(
     `SELECT id, message_id, subject, sender, received_at,
             COALESCE(NULLIF(category, ''), 'other') AS category,
-            todos, action_buttons, is_read, is_starred,
+            summary, todos, action_buttons, is_read, is_starred,
             is_priority, recommended_action, action_status, raw_body,
             draft_body, calendar_events, processed_at
      FROM email_records
@@ -37,17 +36,18 @@ async function getEmailRecords(userId: string): Promise<EmailRecord[]> {
 }
 
 async function searchEmailRecords(userId: string, searchQuery: string): Promise<EmailRecord[]> {
-  const { embedding } = await embed({
-    model: qwenEmbedding,
-    value: searchQuery,
+  const embedResult = await qwenClient.embeddings.create({
+    model: QWEN_EMBEDDING,
+    input: searchQuery,
   });
+  const embedding = embedResult.data[0].embedding;
 
   const vectorLiteral = `[${embedding.join(",")}]`;
 
   const { rows } = await pool.query<EmailRecord>(
     `SELECT id, message_id, subject, sender, received_at,
             COALESCE(NULLIF(category, ''), 'other') AS category,
-            todos, action_buttons, is_read, is_starred,
+            summary, todos, action_buttons, is_read, is_starred,
             is_priority, recommended_action, action_status, raw_body,
             draft_body, calendar_events, processed_at
      FROM email_records

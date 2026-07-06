@@ -230,6 +230,7 @@ export function InboxLayout({
             borderColor: "divider",
             bgcolor: "background.paper",
             overflow: "hidden",
+            display: { xs: selectedId ? "none" : "block", md: "block" },
           }}
         >
           <EmailList
@@ -253,8 +254,8 @@ export function InboxLayout({
           />
         </Box>
 
-        <Box sx={{ flex: 1, minWidth: 0, bgcolor: "background.default" }}>
-          <EmailDetail record={selectedRecord} forwardingAddress={forwardingAddress} />
+        <Box sx={{ flex: 1, minWidth: 0, bgcolor: "background.default", display: { xs: selectedId ? "block" : "none", md: "block" } }}>
+          <EmailDetail record={selectedRecord} forwardingAddress={forwardingAddress} onBack={() => setSelectedId(null)} />
         </Box>
       </Stack>
     </Box>

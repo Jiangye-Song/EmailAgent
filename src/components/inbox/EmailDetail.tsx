@@ -23,6 +23,7 @@ import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
 import DeleteForeverRoundedIcon from "@mui/icons-material/DeleteForeverRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -35,6 +36,7 @@ import type { EmailActionButton, EmailRecord } from "@/types/db";
 type Props = {
   record: EmailRecord | null;
   forwardingAddress: string;
+  onBack?: () => void;
 };
 
 type FoldableSectionProps = {
@@ -120,7 +122,7 @@ function toneToColor(
   }
 }
 
-export function EmailDetail({ record, forwardingAddress }: Props) {
+export function EmailDetail({ record, forwardingAddress, onBack }: Props) {
   const [isPending, startTransition] = useTransition();
   const [localRead, setLocalRead] = useState<boolean | null>(null);
   const [localStarred, setLocalStarred] = useState<boolean | null>(null);
@@ -220,6 +222,16 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           borderColor: "divider",
         }}
       >
+        {onBack && (
+          <Button
+            size="small"
+            startIcon={<ArrowBackRoundedIcon fontSize="small" />}
+            onClick={onBack}
+            sx={{ mb: 1, display: { md: "none" } }}
+          >
+            Back
+          </Button>
+        )}
         <Typography variant="h6" sx={{ mb: 0.75, fontWeight: isRead ? 600 : 800 }}>
           {rec.subject}
         </Typography>

@@ -259,7 +259,7 @@ export function OnboardingWizard({ userName }: { userName: string }) {
                             <Stack
                               direction="row"
                               spacing={1.5}
-                              alignItems="center"
+                              sx={{ alignItems: "center" }}
                             >
                               <Box
                                 sx={{
@@ -368,7 +368,7 @@ export function OnboardingWizard({ userName }: { userName: string }) {
 
               {/* ── Step: completing ─────────────────────────────────────────── */}
               {phase === "completing" && (
-                <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
+                <Stack spacing={2} sx={{ alignItems: "center", py: 2 }}>
                   <CircularProgress size={40} />
                   <Typography color="text.secondary">
                     Setting up your agent…

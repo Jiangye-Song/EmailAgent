@@ -18,7 +18,7 @@ export const proxy = auth(async (req) => {
   }
 
   if (isLoggedIn) {
-    const userId = req.auth?.user?.id ?? req.auth?.sub;
+    const userId = req.auth?.user?.id;
     let onboardingCompleted = req.auth?.user?.onboardingCompleted;
 
     if (userId) {

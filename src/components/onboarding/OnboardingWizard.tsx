@@ -42,7 +42,7 @@ const USE_CASES: {
     followUpPlaceholder: "e.g. Senior Software Engineer",
   },
   {
-    id: "career",
+    id: "jobseeking",
     label: "Job Application",
     Icon: SearchRoundedIcon,
     followUpQuestion: "What position are you looking for?",

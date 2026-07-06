@@ -5,7 +5,7 @@ import { pool } from "@/lib/db";
 
 export type UseCaseId =
   | "work"
-  | "career"
+  | "jobseeking"
   | "personal"
   | "promotion"
   | "alert"
@@ -34,13 +34,13 @@ function buildCategories(
     });
   }
 
-  if (selectedUseCases.includes("career")) {
-    const pos = answers.career?.trim();
+  if (selectedUseCases.includes("jobseeking")) {
+    const pos = answers.jobseeking?.trim();
     const base =
       "Focus entirely on extracting open job roles, hiring companies, and application deadlines. Mark priority with job interview / important application updates.";
     categories.push({
-      key: "career",
-      displayName: "Career",
+      key: "jobseeking",
+      displayName: "Job Seeking",
       prompt: pos ? `I am looking for career(s) in ${pos}. ${base}` : base,
     });
   }

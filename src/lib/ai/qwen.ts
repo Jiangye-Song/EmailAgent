@@ -1,5 +1,67 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
+function contentHasJsonKeyword(content: unknown): boolean {
+  if (typeof content === "string") {
+    return /json/i.test(content);
+  }
+
+  if (Array.isArray(content)) {
+    return content.some((part) => {
+      if (typeof part === "string") {
+        return /json/i.test(part);
+      }
+
+      if (part && typeof part === "object" && "text" in part) {
+        const text = (part as { text?: unknown }).text;
+        return typeof text === "string" && /json/i.test(text);
+      }
+
+      return false;
+    });
+  }
+
+  return false;
+}
+
+function messagesIncludeJsonKeyword(messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (!message || typeof message !== "object") {
+      return false;
+    }
+
+    const content = (message as { content?: unknown }).content;
+    return contentHasJsonKeyword(content);
+  });
+}
+
+function ensureJsonKeywordInMessages(messages: unknown[]): unknown[] {
+  if (messagesIncludeJsonKeyword(messages)) {
+    return messages;
+  }
+
+  const instruction = "Return valid JSON only.";
+  const mutable = [...messages];
+  const systemIndex = mutable.findIndex((message) => {
+    if (!message || typeof message !== "object") return false;
+    return (message as { role?: unknown }).role === "system";
+  });
+
+  if (systemIndex >= 0) {
+    const systemMessage = mutable[systemIndex] as { content?: unknown };
+    const systemContent = systemMessage.content;
+
+    if (typeof systemContent === "string") {
+      mutable[systemIndex] = {
+        ...(mutable[systemIndex] as Record<string, unknown>),
+        content: `${systemContent}\n\n${instruction}`,
+      };
+      return mutable;
+    }
+  }
+
+  return [{ role: "system", content: instruction }, ...mutable];
+}
+
 /**
  * Custom fetch that disables Qwen3's thinking/chain-of-thought mode.
  *
@@ -15,8 +77,13 @@ const fetchNoThinking: typeof globalThis.fetch = async (url, options) => {
     try {
       const body = JSON.parse(options.body) as Record<string, unknown>;
       // Only inject on chat/text generation calls (not embeddings)
-      if ("messages" in body) {
+      if ("messages" in body && Array.isArray(body.messages)) {
         body.enable_thinking = false;
+
+        const responseFormat = body.response_format as { type?: unknown } | undefined;
+        if (responseFormat?.type === "json_object") {
+          body.messages = ensureJsonKeywordInMessages(body.messages);
+        }
       }
       return globalThis.fetch(url as string, {
         ...(options as RequestInit),

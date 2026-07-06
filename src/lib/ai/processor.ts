@@ -145,7 +145,9 @@ const AnalysisSchema = z.object({
     ),
   draftReply: z
     .string()
+    .nullable()
     .optional()
+    .transform((v) => v ?? undefined)
     .describe("Optional draft response body if replying is helpful"),
   calendarEvents: z
     .array(
@@ -254,7 +256,7 @@ async function processOneEmail(
     schema: z.object({ category: z.string() }),
     system:
       "You are stage 1 classification agent. Classify the email into exactly one of the allowed category keys. " +
-      "Use user rules as additional context.",
+      "Use user rules as additional context. Return valid JSON only.",
     prompt:
       `${rulesContext}\n\nAllowed categories:\n` +
       categories.map((category) => `- ${category.key}: ${category.label}`).join("\n") +
@@ -277,14 +279,16 @@ async function processOneEmail(
       model: qwenPlus,
       schema: AnalysisSchema,
       system:
-        "You are stage 2 category-specialist analysis agent. Return JSON only.\n\n" +
+        "You are stage 2 category-specialist analysis agent. Return valid JSON only.\n\n" +
         `Selected category: ${category}.\n` +
         `Category-specific prompt:\n${categoryPrompt}\n\n` +
         `${rulesContext}\n\n` +
         'Required fields:\n' +
         '- summary: max 2 sentences\n' +
         '- todos: concrete action items array\n' +
-        '- actionButtons: optional array with actionLabel/actionLink/actionColor\n' +
+        '- actionButtons: optional array with actionLabel/actionLink/actionColor. ' +
+        '  actionLabel must be a short verb phrase describing the action, e.g. "View Invoice", "Track Shipment", "Reset Password", "Join Meeting". ' +
+        '  Never use generic labels like "Open Link" or "Click Here".\n' +
         '- recommendedAction: archive|keep|draft_reply\n' +
         '- draftReply: optional string\n' +
         '- calendarEvents: array of inferred events (title, start, optional end/description/location)\n' +
@@ -308,7 +312,7 @@ async function processOneEmail(
         schema: RulesSchema,
         system:
           'Given a list of user-defined email rules, identify which rules apply to this email. ' +
-          'Return JSON with exactly this shape: {"matchedRules": ["<exact rule text>", ...]}. ' +
+          'Return valid JSON with exactly this shape: {"matchedRules": ["<exact rule text>", ...]}. ' +
           'Only include rules that clearly apply. Use empty array if none match.',
         prompt: `${rulesContext}\n\nCategory: ${category}\n\nEmail:\n${emailText}`,
       });
@@ -330,12 +334,18 @@ async function processOneEmail(
     todos: analysisResult.object.todos,
     actionButtons: mergeActionButtons([
       ...(analysisResult.object.actionButtons ?? []),
-      ...urlMatches.map<ProcessedActionButton>((href, index) => ({
-        label: index === 0 ? "Open Link" : `Open Link ${index + 1}`,
-        kind: "url",
-        href,
-        tone: "accent",
-      })),
+      ...urlMatches.map<ProcessedActionButton>((href, index) => {
+        // Extract a readable domain as a last-resort label for URLs the
+        // model did not already produce an actionButton for.
+        let domain = href;
+        try {
+          domain = new URL(href).hostname.replace(/^www\./, "");
+        } catch {
+          // ignore — keep href as fallback
+        }
+        const label = index === 0 ? `Visit ${domain}` : `Visit ${domain} (${index + 1})`;
+        return { label, kind: "url", href, tone: "accent" };
+      }),
     ]),
     recommendedAction: analysisResult.object
       .recommendedAction as RecommendedAction,

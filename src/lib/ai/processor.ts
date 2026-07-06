@@ -30,7 +30,10 @@ async function generateParsed<T>(
   const content = completion.choices[0].message.content;
   console.log(`[generateParsed:${model}] raw response:`, content);
   if (!content) throw new Error("[generateParsed] Empty response from model");
-  return schema.parse(JSON.parse(content));
+  const parsed = JSON.parse(content);
+  // Some models wrap the object in an array — unwrap it
+  const data = Array.isArray(parsed) ? parsed[0] : parsed;
+  return schema.parse(data);
 }
 
 function injectJsonKeyword(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {

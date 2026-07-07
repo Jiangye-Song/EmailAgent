@@ -9,7 +9,8 @@ export type UseCaseId =
   | "personal"
   | "promotion"
   | "alert"
-  | "documents";
+  | "documents"
+  | "newsletter";
 
 type CategoryEntry = {
   key: string;
@@ -82,6 +83,15 @@ function buildCategories(
       displayName: "Documents",
       prompt:
         "Identify document type, attached files, and record-keeping relevance. Flag items requiring signatures, review, or filing. Note expiry dates and action deadlines.",
+    });
+  }
+
+  if (selectedUseCases.includes("newsletter")) {
+    categories.push({
+      key: "newsletter",
+      displayName: "Newsletters",
+      prompt:
+        "Summarise the key insights, headlines, or topics covered. Highlight any actionable links or events. Skip filler content and focus on what is genuinely worth the reader's attention.",
     });
   }
 

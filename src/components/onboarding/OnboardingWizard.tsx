@@ -24,6 +24,7 @@ import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
+import MailRoundedIcon from "@mui/icons-material/MailRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import { completeOnboarding, type UseCaseId } from "@/lib/actions/onboarding-actions";
 
@@ -72,6 +73,12 @@ const USE_CASES: {
     id: "documents",
     label: "Document & File Sharing & Record Keeping",
     Icon: FolderRoundedIcon,
+    followUpQuestion: null,
+  },
+  {
+    id: "newsletter",
+    label: "Newsletters & Subscriptions",
+    Icon: MailRoundedIcon,
     followUpQuestion: null,
   },
 ];

@@ -115,6 +115,13 @@ export async function isSenderWhitelisted(
   userId: string,
   senderRaw: string,
 ): Promise<boolean> {
+  // Check if whitelist filtering is enabled for this user
+  const { rows: userRows } = await pool.query<{ whitelist_enabled: boolean }>(
+    `SELECT whitelist_enabled FROM users WHERE id = $1`,
+    [userId],
+  );
+  if (!userRows[0]?.whitelist_enabled) return true;
+
   const senderEmail = extractEmailAddress(senderRaw);
   if (!senderEmail) return false;
 

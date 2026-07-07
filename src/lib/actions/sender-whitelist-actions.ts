@@ -45,3 +45,10 @@ export async function deleteWhitelistSender(entryId: string): Promise<void> {
 
   revalidatePath("/settings");
 }
+
+export async function setWhitelistEnabled(enabled: boolean): Promise<void> {
+  const userId = await requireUserId();
+  const { pool } = await import("@/lib/db");
+  await pool.query(`UPDATE users SET whitelist_enabled = $1 WHERE id = $2`, [enabled, userId]);
+  revalidatePath("/settings");
+}

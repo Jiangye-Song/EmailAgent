@@ -7,8 +7,10 @@ import {
   Button,
   Chip,
   CircularProgress,
+  FormControlLabel,
   IconButton,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -17,6 +19,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import {
   addWhitelistSender,
   deleteWhitelistSender,
+  setWhitelistEnabled,
 } from "@/lib/actions/sender-whitelist-actions";
 
 type WhitelistEntry = {
@@ -27,6 +30,7 @@ type WhitelistEntry = {
 
 type Props = {
   initialEntries: WhitelistEntry[];
+  initialEnabled: boolean;
 };
 
 function displayEntry(entry: WhitelistEntry): string {
@@ -36,17 +40,32 @@ function displayEntry(entry: WhitelistEntry): string {
   return entry.senderEmail;
 }
 
-export function SenderWhitelist({ initialEntries }: Props) {
+export function SenderWhitelist({ initialEntries, initialEnabled }: Props) {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [enabled, setEnabled] = useState(initialEnabled);
 
   const orderedEntries = useMemo(
     () => [...initialEntries].sort((a, b) => displayEntry(a).localeCompare(displayEntry(b))),
     [initialEntries],
   );
+
+  const onToggle = (checked: boolean) => {
+    setEnabled(checked);
+    startTransition(async () => {
+      try {
+        await setWhitelistEnabled(checked);
+        setMessage(checked ? "Whitelist filtering enabled." : "Whitelist disabled — all senders allowed.");
+        router.refresh();
+      } catch {
+        setEnabled(!checked);
+        setError("Failed to update whitelist setting.");
+      }
+    });
+  };
 
   const onAdd = () => {
     const value = input.trim();
@@ -82,42 +101,56 @@ export function SenderWhitelist({ initialEntries }: Props) {
 
   return (
     <Stack spacing={2.5}>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-        <TextField
-          fullWidth
-          label="Forwarding sender"
-          placeholder="your-mailbox@example.com or example.com"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          helperText="Enter the mailbox that sends the forward into your agent address (or allow its domain)."
-        />
-        <Button
-          variant="contained"
-          onClick={onAdd}
-          disabled={isPending || !input.trim()}
-          startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <AddRoundedIcon />}
-          sx={{ minWidth: { sm: 140 } }}
-        >
-          Add
-        </Button>
-      </Stack>
-
-      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-        {orderedEntries.map((entry) => (
-          <Chip
-            key={entry.id}
-            label={displayEntry(entry)}
-            onDelete={() => onDelete(entry)}
-            deleteIcon={<DeleteOutlineRoundedIcon />}
-            variant="outlined"
+      <FormControlLabel
+        control={
+          <Switch
+            checked={enabled}
+            onChange={(e) => onToggle(e.target.checked)}
+            disabled={isPending}
           />
-        ))}
-      </Stack>
+        }
+        label={enabled ? "Whitelist enabled — only listed senders are processed" : "Whitelist disabled — all senders are processed"}
+      />
 
-      {orderedEntries.length === 0 && (
-        <Typography variant="body2" color="text.secondary">
-          No forwarding sender is whitelisted yet.
-        </Typography>
+      {enabled && (
+        <>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
+            <TextField
+              fullWidth
+              label="Forwarding sender"
+              placeholder="your-mailbox@example.com or example.com"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+            <Button
+              variant="contained"
+              onClick={onAdd}
+              disabled={isPending || !input.trim()}
+              startIcon={isPending ? <CircularProgress size={16} color="inherit" /> : <AddRoundedIcon />}
+              sx={{ minWidth: { sm: 140 } }}
+            >
+              Add
+            </Button>
+          </Stack>
+          <span>Enter the mailbox that sends the forward into your agent address (or allow its domain).</span>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+            {orderedEntries.map((entry) => (
+              <Chip
+                key={entry.id}
+                label={displayEntry(entry)}
+                onDelete={() => onDelete(entry)}
+                deleteIcon={<DeleteOutlineRoundedIcon />}
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+
+          {orderedEntries.length === 0 && (
+            <Typography variant="body2" color="text.secondary">
+              No forwarding sender is whitelisted yet.
+            </Typography>
+          )}
+        </>
       )}
 
       {message && <Alert severity="success">{message}</Alert>}

@@ -92,12 +92,14 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [rules, forwardingAddress, whitelistEntries, categoryPrompts] = await Promise.all([
+  const [rules, forwardingAddress, whitelistEntries, categoryPrompts, whitelistEnabledRow] = await Promise.all([
     getUserRules(session.user.id),
     ensureForwardingAddress(session.user.id),
     getSenderWhitelist(session.user.id),
     getUserCategoryPrompts(session.user.id),
+    pool.query<{ whitelist_enabled: boolean }>(`SELECT whitelist_enabled FROM users WHERE id = $1`, [session.user.id]),
   ]);
+  const whitelistEnabled = whitelistEnabledRow.rows[0]?.whitelist_enabled ?? true;
 
   return (
     <Box
@@ -165,7 +167,7 @@ export default async function SettingsPage() {
                   </Typography>
                 </Box>
                 <Divider />
-                <SenderWhitelist initialEntries={whitelistEntries} />
+                <SenderWhitelist initialEntries={whitelistEntries} initialEnabled={whitelistEnabled} />
               </Stack>
             </CardContent>
           </Card>

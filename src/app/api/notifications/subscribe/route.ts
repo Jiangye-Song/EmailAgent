@@ -24,3 +24,24 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { endpoint } = body ?? {};
+
+  if (!endpoint) {
+    return NextResponse.json({ error: "Missing endpoint" }, { status: 400 });
+  }
+
+  await pool.query(
+    `DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2`,
+    [session.user.id, endpoint],
+  );
+
+  return NextResponse.json({ ok: true });
+}

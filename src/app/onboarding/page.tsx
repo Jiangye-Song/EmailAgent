@@ -18,6 +18,7 @@ export default async function OnboardingPage() {
   if (onboardingCompleted) redirect("/inbox");
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 
-  return <OnboardingWizard userName={firstName} />;
+  return <OnboardingWizard userName={firstName} vapidPublicKey={vapidPublicKey} />;
 }

@@ -5,6 +5,7 @@ import { RulesEditor } from "@/components/settings/RulesEditor";
 import { CategoryPromptsEditor } from "@/components/settings/CategoryPromptsEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
 import { SenderWhitelist } from "@/components/settings/SenderWhitelist";
+import { NotificationToggle } from "@/components/settings/NotificationToggle";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { DEFAULT_CATEGORY_PROMPTS } from "@/lib/ai/category-prompts";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
@@ -24,6 +25,7 @@ import {
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 
 async function getUserRules(userId: string): Promise<string[]> {
   const { rows } = await pool.query<{ rule_text: string }>(
@@ -205,6 +207,26 @@ export default async function SettingsPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          {process.env.VAPID_PUBLIC_KEY && (
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Box>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 0.5 }}>
+                      <NotificationsRoundedIcon fontSize="small" color="primary" />
+                      <Typography variant="h5">Notifications</Typography>
+                    </Stack>
+                    <Typography color="text.secondary" variant="body2">
+                      Receive a browser push notification when a priority email arrives.
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  <NotificationToggle vapidPublicKey={process.env.VAPID_PUBLIC_KEY} />
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
         </Stack>
       </Container>
     </Box>

@@ -78,7 +78,12 @@ export async function POST(req: NextRequest) {
 
   // ── Push notification for calendar events ─────────────────────────────────
   const processed = results[0];
-  if (processed?.ruleMatches?.length) {
+  if (processed?.isPriority) {
+    await sendPushNotification(userId, {
+      title: "Priority email",
+      body: email.subject,
+    }).catch((err) => console.warn("[inbound] Push failed:", err));
+  } else if (processed?.ruleMatches?.length) {
     await sendPushNotification(userId, {
       title: "Rules triggered",
       body: email.subject,

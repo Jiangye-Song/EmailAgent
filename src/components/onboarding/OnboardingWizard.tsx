@@ -27,6 +27,7 @@ import FolderRoundedIcon from "@mui/icons-material/FolderRounded";
 import MailRoundedIcon from "@mui/icons-material/MailRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import { completeOnboarding, type UseCaseId } from "@/lib/actions/onboarding-actions";
+import { subscribeToWebPush } from "@/lib/push/subscribe";
 
 const USE_CASES: {
   id: UseCaseId;
@@ -83,13 +84,13 @@ const USE_CASES: {
   },
 ];
 
-type WizardPhase = "usecases" | "followups" | "completing";
+type WizardPhase = "usecases" | "followups" | "notifications" | "completing";
 
-export function OnboardingWizard({ userName }: { userName: string }) {
+export function OnboardingWizard({ userName, vapidPublicKey }: { userName: string; vapidPublicKey?: string }) {
   const theme = useTheme();
   const { update } = useSession();
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<WizardPhase>("usecases");
@@ -100,6 +101,10 @@ export function OnboardingWizard({ userName }: { userName: string }) {
   const [followUpIndex, setFollowUpIndex] = useState(0);
   const [answers, setAnswers] = useState<Partial<Record<UseCaseId, string>>>({});
   const [currentAnswer, setCurrentAnswer] = useState("");
+
+  // Notifications step state
+  const [notifBusy, setNotifBusy] = useState(false);
+  const [notifError, setNotifError] = useState<string | null>(null);
 
   // ── Use-case selection ──────────────────────────────────────────────────────
   function toggleUseCase(id: UseCaseId) {
@@ -115,7 +120,11 @@ export function OnboardingWizard({ userName }: { userName: string }) {
     ).map((uc) => uc.id);
 
     if (queue.length === 0) {
-      submitOnboarding({});
+      if (vapidPublicKey) {
+        setPhase("notifications");
+      } else {
+        submitOnboarding({});
+      }
       return;
     }
     setFollowUpQueue(queue);
@@ -136,6 +145,8 @@ export function OnboardingWizard({ userName }: { userName: string }) {
 
     if (followUpIndex + 1 < followUpQueue.length) {
       setFollowUpIndex(followUpIndex + 1);
+    } else if (vapidPublicKey) {
+      setPhase("notifications");
     } else {
       submitOnboarding(newAnswers);
     }
@@ -158,9 +169,13 @@ export function OnboardingWizard({ userName }: { userName: string }) {
   }
 
   // ── Progress ────────────────────────────────────────────────────────────────
-  const totalSteps = 1 + followUpQueue.length;
+  const notifStep = vapidPublicKey ? 1 : 0;
+  const totalSteps = 1 + followUpQueue.length + notifStep;
   const currentStep =
-    phase === "usecases" ? 0 : phase === "followups" ? 1 + followUpIndex : totalSteps;
+    phase === "usecases" ? 0
+    : phase === "followups" ? 1 + followUpIndex
+    : phase === "notifications" ? 1 + followUpQueue.length
+    : totalSteps;
   const progressValue = totalSteps > 0 ? (currentStep / (totalSteps + 1)) * 100 : 10;
 
   // ── Current follow-up metadata ───────────────────────────────────────────────
@@ -368,6 +383,71 @@ export function OnboardingWizard({ userName }: { userName: string }) {
                       {followUpIndex + 1 < followUpQueue.length
                         ? "Continue"
                         : "Finish setup"}
+                    </Button>
+                  </Stack>
+                </Stack>
+              )}
+
+              {/* ── Step: notifications ─────────────────────────────────────── */}
+              {phase === "notifications" && vapidPublicKey && (
+                <Stack spacing={3} sx={{ alignItems: "center", textAlign: "center" }}>
+                  <Box
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: "primary.main",
+                      color: "primary.contrastText",
+                      boxShadow: "0 10px 24px rgba(139,92,246,0.35)",
+                    }}
+                  >
+                    <NotificationsRoundedIcon />
+                  </Box>
+                  <Stack spacing={1}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Get notified about priority emails
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Enable browser push notifications to be alerted in real-time
+                      when a priority email arrives in your inbox.
+                    </Typography>
+                  </Stack>
+
+                  {notifError && <Alert severity="error" sx={{ width: "100%", textAlign: "left" }}>{notifError}</Alert>}
+
+                  <Stack spacing={1} sx={{ width: "100%" }}>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      fullWidth
+                      disabled={notifBusy}
+                      startIcon={notifBusy ? <CircularProgress size={16} color="inherit" /> : <NotificationsRoundedIcon />}
+                      onClick={async () => {
+                        if (!vapidPublicKey) return;
+                        setNotifBusy(true);
+                        setNotifError(null);
+                        try {
+                          await subscribeToWebPush(vapidPublicKey);
+                        } catch {
+                          setNotifError("Could not enable notifications. You can change this later in Settings.");
+                        } finally {
+                          setNotifBusy(false);
+                          submitOnboarding(answers);
+                        }
+                      }}
+                    >
+                      {notifBusy ? "Requesting permission…" : "Enable notifications"}
+                    </Button>
+                    <Button
+                      variant="text"
+                      color="inherit"
+                      sx={{ color: "text.secondary" }}
+                      disabled={notifBusy}
+                      onClick={() => submitOnboarding(answers)}
+                    >
+                      Skip for now
                     </Button>
                   </Stack>
                 </Stack>

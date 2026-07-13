@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   Alert,
   Box,
@@ -19,6 +19,7 @@ import {
   removeCategory,
   saveCategoryPrompts,
 } from "@/lib/actions/category-prompts-actions";
+import { sortCategoriesWithOtherLast } from "@/lib/categories";
 
 type Props = {
   initialCategories: {
@@ -29,15 +30,11 @@ type Props = {
 };
 
 export function CategoryPromptsEditor({ initialCategories }: Props) {
-  const [items, setItems] = useState(initialCategories);
+  const [items, setItems] = useState(() => sortCategoriesWithOtherLast(initialCategories));
   const [newCategoryName, setNewCategoryName] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setItems(initialCategories);
-  }, [initialCategories]);
 
   function updatePrompt(categoryKey: string, value: string) {
     setItems((prev) =>
@@ -70,7 +67,7 @@ export function CategoryPromptsEditor({ initialCategories }: Props) {
         const created = await addCategory(value);
         setItems((prev) => {
           const next = prev.filter((item) => item.categoryKey !== created.categoryKey);
-          return [...next, created];
+          return sortCategoriesWithOtherLast([...next, created]);
         });
         setNewCategoryName("");
       } catch (err) {
@@ -84,7 +81,7 @@ export function CategoryPromptsEditor({ initialCategories }: Props) {
       try {
         setError(null);
         await removeCategory(categoryKey);
-        setItems((prev) => prev.filter((item) => item.categoryKey !== categoryKey));
+        setItems((prev) => sortCategoriesWithOtherLast(prev.filter((item) => item.categoryKey !== categoryKey)));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to remove category");
       }

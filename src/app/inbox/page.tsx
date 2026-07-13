@@ -4,6 +4,7 @@ import { pool } from "@/lib/db";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
 import { InboxLayout } from "@/components/inbox/InboxLayout";
 import { qwenClient, QWEN_EMBEDDING } from "@/lib/ai/qwen";
+import { sortCategoriesWithOtherLast } from "@/lib/categories";
 import type { EmailRecord } from "@/types/db";
 
 type UserCategoryRow = {
@@ -108,7 +109,7 @@ function buildSidebarCategories(
     });
   }
 
-  return fromUser;
+  return sortCategoriesWithOtherLast(fromUser);
 }
 
 type InboxPageProps = {

@@ -186,7 +186,10 @@ export default async function SettingsPage() {
                   </Typography>
                 </Box>
                 <Divider />
-                <CategoryPromptsEditor initialCategories={categoryPrompts} />
+                <CategoryPromptsEditor
+                  key={categoryPrompts.map((item) => item.categoryKey).join("|")}
+                  initialCategories={categoryPrompts}
+                />
               </Stack>
             </CardContent>
           </Card>

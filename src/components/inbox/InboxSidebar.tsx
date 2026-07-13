@@ -21,6 +21,8 @@ import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ArchiveRoundedIcon from "@mui/icons-material/ArchiveRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
+import WorkRoundedIcon from "@mui/icons-material/WorkRounded";
+import ManageSearchRoundedIcon from "@mui/icons-material/ManageSearchRounded";
 
 type CategoryItem = {
   key: string;
@@ -35,6 +37,8 @@ const CORE_CATEGORIES: CategoryItem[] = [
 
 const ICON_BY_CATEGORY: Record<string, typeof MailRoundedIcon> = {
   alert: NotificationsActiveRoundedIcon,
+  work: WorkRoundedIcon,
+  jobseeking: ManageSearchRoundedIcon,
   personal: PersonRoundedIcon,
   newsletter: SellRoundedIcon,
   promotion: CampaignRoundedIcon,

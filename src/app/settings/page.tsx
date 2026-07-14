@@ -18,6 +18,7 @@ import {
   CardContent,
   Container,
   Divider,
+  IconButton,
   Stack,
   Toolbar,
   Typography,
@@ -131,15 +132,17 @@ export default async function SettingsPage() {
           bgcolor: "background.paper",
         }}
       >
-        <Link href="/inbox" style={{ textDecoration: "none" }}>
-          <Button startIcon={<ArrowBackRoundedIcon />}></Button>
-        </Link>
         <Toolbar>
           <Stack
             direction="row"
             spacing={1.2}
             sx={{ alignItems: "center", flexGrow: 1 }}
           >
+            <Link href="/inbox" style={{ textDecoration: "none" }}>
+              <IconButton color="inherit" edge="start" sx={{ mr: 0.5 }}>
+                <ArrowBackRoundedIcon />
+              </IconButton>
+            </Link>
             <SettingsRoundedIcon color="primary" />
             <Typography variant="h6">Settings</Typography>
           </Stack>

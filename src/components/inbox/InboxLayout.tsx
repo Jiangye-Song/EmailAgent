@@ -27,10 +27,12 @@ import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { EmailList } from "@/components/inbox/EmailList";
 import { EmailDetail } from "@/components/inbox/EmailDetail";
 import { markEmailRead } from "@/lib/actions/email-actions";
+import { NowPanel } from "@/components/inbox/NowPanel";
 import type { EmailRecord } from "@/types/db";
 
 type Props = {
   records: EmailRecord[];
+  allRecords: EmailRecord[];
   searchQuery: string;
   categoryCounts: Record<string, number>;
   userCategories: { categoryKey: string; displayName: string }[];
@@ -39,6 +41,7 @@ type Props = {
 
 export function InboxLayout({
   records,
+  allRecords,
   searchQuery,
   categoryCounts,
   userCategories,
@@ -71,7 +74,10 @@ export function InboxLayout({
         ? records.filter((r) => r.is_starred)
         : records.filter((r) => r.category === selectedCategory);
 
-  const selectedRecord = records.find((r) => r.id === selectedId) ?? null;
+  const selectedRecord =
+    records.find((r) => r.id === selectedId) ??
+    allRecords.find((r) => r.id === selectedId) ??
+    null;
   const sideWidth = 220;
   const listWidth = 360;
 
@@ -189,6 +195,14 @@ export function InboxLayout({
                 <SettingsRoundedIcon />
               </IconButton>
             </Tooltip>
+            <NowPanel
+              records={allRecords}
+              onViewEmail={(id) => {
+                setSelectedId(id);
+                const selected = allRecords.find((record) => record.id === id);
+                if (selected && !selected.is_read) void markEmailRead(id);
+              }}
+            />
             <ThemeModeToggle />
           </Stack>
         </Toolbar>

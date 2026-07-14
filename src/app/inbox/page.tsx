@@ -154,6 +154,7 @@ export default async function InboxPage({ searchParams }: InboxPageProps) {
   return (
     <InboxLayout
       records={records}
+      allRecords={allRecords}
       searchQuery={searchQuery}
       categoryCounts={categoryCounts}
       userCategories={sidebarCategories}

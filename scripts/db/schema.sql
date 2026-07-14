@@ -13,8 +13,12 @@ create table if not exists users (
   password_hash           text,                    -- bcrypt hash (null for OAuth users)
   forwarding_address      text        unique,      -- e.g. abc12345@emailagent.top
   onboarding_completed    boolean     not null default false,
+  whitelist_enabled       boolean     not null default true,
   created_at              timestamptz default now()
 );
+
+-- Keep existing databases in sync when this canonical schema is reapplied.
+alter table users add column if not exists whitelist_enabled boolean not null default true;
 
 create table if not exists accounts (
   id                  uuid  primary key default uuid_generate_v4(),

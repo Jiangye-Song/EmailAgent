@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  alpha,
   Box,
+  Button,
   Chip,
   Divider,
   Dialog,
@@ -13,14 +13,10 @@ import {
   Stack,
   Tooltip,
   Typography,
-  useTheme,
 } from "@mui/material";
 import ListAltIcon from "@mui/icons-material/ListAlt";
-import DeleteForeverRoundedIcon from "@mui/icons-material/DeleteForeverRounded";
 import LaunchRoundedIcon from "@mui/icons-material/LaunchRounded";
 import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
-import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
-import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import { markEmailRead, removeEmail, toggleStarEmail } from "@/lib/actions/email-actions";
 import type { EmailActionButton, EmailRecord } from "@/types/db";
 
@@ -47,15 +43,7 @@ function displayCategory(category: string): string {
     .join(" ");
 }
 
-function ActionIcon({ action }: { action: EmailActionButton }) {
-  if (action.kind === "star") return <StarRoundedIcon fontSize="small" />;
-  if (action.kind === "remove") return <DeleteForeverRoundedIcon fontSize="small" />;
-  if (action.kind === "reply") return <ReplyRoundedIcon fontSize="small" />;
-  return <LaunchRoundedIcon fontSize="small" />;
-}
-
 export function NowPanel({ records, onViewEmail }: Props) {
-  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -191,22 +179,20 @@ export function NowPanel({ records, onViewEmail }: Props) {
                 >
                   <ReactMarkdown>{nextPriority.summary || "No summary available."}</ReactMarkdown>
                 </Box>
-                <Stack direction="row" spacing={1} sx={{ pt: 0.5, justifyContent: "center" }}>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", pt: 0.5, justifyContent: "center" }}>
                   {(nextPriority.action_buttons ?? []).map((action, index) => (
-                    <Tooltip key={`${action.kind}-${index}`} title={action.label}>
-                      <span>
-                        <IconButton
-                          size="small"
-                          color={action.kind === "remove" ? "error" : action.kind === "star" ? "warning" : "primary"}
-                          aria-label={action.label}
-                          disabled={isPending || (action.kind === "url" && !action.href)}
-                          onClick={() => runAction(action)}
-                          sx={{ bgcolor: alpha(theme.palette.primary.main, 0.08) }}
-                        >
-                          <ActionIcon action={action} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                    <Button
+                      key={`${action.kind}-${index}`}
+                      size="small"
+                      variant="contained"
+                      color={action.kind === "remove" ? "error" : action.kind === "star" ? "warning" : "primary"}
+                      aria-label={action.label}
+                      disabled={isPending || (action.kind === "url" && !action.href)}
+                      onClick={() => runAction(action)}
+                      sx={{ borderRadius: 999, px: 1.75, textTransform: "none", fontWeight: 700 }}
+                    >
+                      {action.label}
+                    </Button>
                   ))}
                 </Stack>
                 <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", pt: 1 }}>

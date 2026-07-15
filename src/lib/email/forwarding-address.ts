@@ -115,10 +115,24 @@ export async function isSenderWhitelisted(
   userId: string,
   senderRaw: string,
 ): Promise<boolean> {
+  // Check if whitelist filtering is enabled for this user
+  const { rows: userRows } = await pool.query<{ whitelist_enabled: boolean }>(
+    `SELECT whitelist_enabled FROM users WHERE id = $1`,
+    [userId],
+  );
+  if (!userRows[0]?.whitelist_enabled) return true;
+
   const senderEmail = extractEmailAddress(senderRaw);
   if (!senderEmail) return false;
 
   const senderDomain = extractDomain(senderEmail);
+
+  // If the user has no whitelist entries, allow all senders
+  const countResult = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM sender_whitelist WHERE user_id = $1`,
+    [userId],
+  );
+  if (parseInt(countResult.rows[0]?.count ?? "0", 10) === 0) return true;
 
   const { rows } = await pool.query<{ allowed: boolean }>(
     `SELECT EXISTS (

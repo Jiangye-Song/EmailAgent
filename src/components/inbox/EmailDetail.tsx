@@ -23,6 +23,7 @@ import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
 import DeleteForeverRoundedIcon from "@mui/icons-material/DeleteForeverRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -35,6 +36,7 @@ import type { EmailActionButton, EmailRecord } from "@/types/db";
 type Props = {
   record: EmailRecord | null;
   forwardingAddress: string;
+  onBack?: () => void;
 };
 
 type FoldableSectionProps = {
@@ -120,7 +122,7 @@ function toneToColor(
   }
 }
 
-export function EmailDetail({ record, forwardingAddress }: Props) {
+export function EmailDetail({ record, forwardingAddress, onBack }: Props) {
   const [isPending, startTransition] = useTransition();
   const [localRead, setLocalRead] = useState<boolean | null>(null);
   const [localStarred, setLocalStarred] = useState<boolean | null>(null);
@@ -220,6 +222,16 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
           borderColor: "divider",
         }}
       >
+        {onBack && (
+          <Button
+            size="small"
+            startIcon={<ArrowBackRoundedIcon fontSize="small" />}
+            onClick={onBack}
+            sx={{ mb: 1, display: { md: "none" } }}
+          >
+            Back
+          </Button>
+        )}
         <Typography variant="h6" sx={{ mb: 0.75, fontWeight: isRead ? 600 : 800 }}>
           {rec.subject}
         </Typography>
@@ -371,71 +383,45 @@ export function EmailDetail({ record, forwardingAddress }: Props) {
                   </Box>
                 ))}
 
-                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mt: 1 }}>
-                  {actionButtons.map((action, index) => (
-                    <Button
-                      key={`${action.kind}-${index}`}
-                      size="small"
-                      variant="contained"
-                      color={
-                        action.kind === "star"
-                          ? "warning"
+                {actionButtons.length > 0 && (
+                  <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mt: 1 }}>
+                    {actionButtons.map((action, index) => (
+                      <Button
+                        key={`${action.kind}-${index}`}
+                        size="small"
+                        variant="contained"
+                        color={
+                          action.kind === "star"
+                            ? "warning"
+                            : action.kind === "remove"
+                              ? "error"
+                              : action.kind === "reply"
+                                ? "primary"
+                                : toneToColor(action.tone)
+                        }
+                        startIcon={
+                          action.kind === "star" ? (
+                            <StarRoundedIcon fontSize="small" />
+                          ) : action.kind === "remove" ? (
+                            <DeleteForeverRoundedIcon fontSize="small" />
+                          ) : action.kind === "reply" ? (
+                            <ReplyRoundedIcon fontSize="small" />
+                          ) : undefined
+                        }
+                        onClick={() => runButtonAction(action)}
+                        disabled={isPending || (action.kind === "url" && !action.href)}
+                      >
+                        {action.kind === "star"
+                          ? "Star"
                           : action.kind === "remove"
-                            ? "error"
+                            ? "Remove"
                             : action.kind === "reply"
-                              ? "primary"
-                              : toneToColor(action.tone)
-                      }
-                      startIcon={
-                        action.kind === "star" ? (
-                          <StarRoundedIcon fontSize="small" />
-                        ) : action.kind === "remove" ? (
-                          <DeleteForeverRoundedIcon fontSize="small" />
-                        ) : action.kind === "reply" ? (
-                          <ReplyRoundedIcon fontSize="small" />
-                        ) : undefined
-                      }
-                      onClick={() => runButtonAction(action)}
-                      disabled={isPending || (action.kind === "url" && !action.href)}
-                    >
-                      {action.kind === "star"
-                        ? "Star"
-                        : action.kind === "remove"
-                          ? "Remove"
-                          : action.kind === "reply"
-                            ? "Reply"
-                            : action.label}
-                    </Button>
-                  ))}
-
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="warning"
-                    onClick={handleToggleStar}
-                    disabled={isPending}
-                  >
-                    {isStarred ? "Unstar" : "Star"}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    onClick={handleRemove}
-                    disabled={isPending}
-                  >
-                    Remove
-                  </Button>
-                  <Button
-                    component="a"
-                    href={mailtoUrl}
-                    size="small"
-                    variant="outlined"
-                    disabled={isPending}
-                  >
-                    Reply
-                  </Button>
-                </Stack>
+                              ? "Reply"
+                              : action.label}
+                      </Button>
+                    ))}
+                  </Stack>
+                )}
               </Box>
             </FoldableSection>
           )}

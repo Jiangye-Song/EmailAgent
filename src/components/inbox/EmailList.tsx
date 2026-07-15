@@ -25,13 +25,18 @@ const CATEGORY_COLORS: Record<string, "error" | "primary" | "secondary" | "warni
   other: "default",
 };
 
+function categoryChipColor(category: string): "error" | "primary" | "secondary" | "warning" | "default" {
+  return CATEGORY_COLORS[category] ?? "default";
+}
+
 type Props = {
   records: EmailRecord[];
   selectedId: string | null;
+  emptyMessage: string;
   onSelect: (id: string) => void;
 };
 
-export function EmailList({ records, selectedId, onSelect }: Props) {
+export function EmailList({ records, selectedId, emptyMessage, onSelect }: Props) {
   if (records.length === 0) {
     return (
       <Box
@@ -44,7 +49,7 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          No emails in this category.
+          {emptyMessage}
         </Typography>
       </Box>
     );
@@ -105,7 +110,8 @@ export function EmailList({ records, selectedId, onSelect }: Props) {
                 <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
                   <Chip
                     label={record.category}
-                    color={CATEGORY_COLORS[record.category]}
+                    color={categoryChipColor(record.category)}
+                    variant={record.is_priority ? "filled" : "outlined"}
                     size="small"
                     sx={{
                       alignSelf: "flex-start",

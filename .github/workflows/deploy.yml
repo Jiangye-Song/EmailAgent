@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+      - feat/advanced-category
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to ECS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /app/email-agent
+
+            echo "→ Syncing code to origin/${{ github.ref_name }}..."
+            git fetch --prune origin
+            git clean -fd -e .env -e .env.*
+            git reset --hard "origin/${{ github.ref_name }}"
+
+            echo "→ Installing dependencies..."
+            pnpm install --frozen-lockfile
+
+            echo "→ Building..."
+            pnpm build
+
+            echo "→ Restarting app..."
+            pm2 startOrRestart ecosystem.config.json --update-env
+
+            echo "✓ Deploy complete"

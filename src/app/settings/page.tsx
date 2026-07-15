@@ -1,10 +1,13 @@
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
 import { RulesEditor } from "@/components/settings/RulesEditor";
+import { CategoryPromptsEditor } from "@/components/settings/CategoryPromptsEditor";
 import { ForwardingInfo } from "@/components/settings/ForwardingInfo";
 import { SenderWhitelist } from "@/components/settings/SenderWhitelist";
+import { NotificationToggle } from "@/components/settings/NotificationToggle";
 import { ensureForwardingAddress } from "@/lib/email/forwarding-address";
+import { DEFAULT_CATEGORY_PROMPTS } from "@/lib/ai/category-prompts";
 import { ThemeModeToggle } from "@/components/ThemeModeToggle";
 import Link from "next/link";
 import {
@@ -15,12 +18,15 @@ import {
   CardContent,
   Container,
   Divider,
+  IconButton,
   Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 
 async function getUserRules(userId: string): Promise<string[]> {
   const { rows } = await pool.query<{ rule_text: string }>(
@@ -52,15 +58,61 @@ async function getSenderWhitelist(userId: string) {
   }));
 }
 
+async function getUserCategoryPrompts(
+  userId: string,
+): Promise<{ categoryKey: string; displayName: string; prompt: string }[]> {
+  const { rows } = await pool.query<{
+    category_key: string;
+    display_name: string;
+    prompt: string | null;
+  }>(
+    `SELECT uc.category_key, uc.display_name, ucp.prompt
+     FROM user_categories uc
+     LEFT JOIN user_category_prompts ucp
+       ON ucp.user_id = uc.user_id
+      AND ucp.category = uc.category_key
+     WHERE uc.user_id = $1 AND uc.is_active = true
+     ORDER BY uc.created_at ASC`,
+    [userId],
+  );
+
+  return rows.map((row) => ({
+    categoryKey: row.category_key,
+    displayName: row.display_name,
+    prompt:
+      row.prompt ??
+      DEFAULT_CATEGORY_PROMPTS[row.category_key] ??
+      "Use neutral analysis and extract practical next steps.",
+  }));
+}
+
 export default async function SettingsPage() {
+  async function handleSignOut() {
+    "use server";
+    await signOut({ redirectTo: "/login" });
+  }
+
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [rules, forwardingAddress, whitelistEntries] = await Promise.all([
+  const [
+    rules,
+    forwardingAddress,
+    whitelistEntries,
+    categoryPrompts,
+    whitelistEnabledRow,
+  ] = await Promise.all([
     getUserRules(session.user.id),
     ensureForwardingAddress(session.user.id),
     getSenderWhitelist(session.user.id),
+    getUserCategoryPrompts(session.user.id),
+    pool.query<{ whitelist_enabled: boolean }>(
+      `SELECT whitelist_enabled FROM users WHERE id = $1`,
+      [session.user.id],
+    ),
   ]);
+  const whitelistEnabled =
+    whitelistEnabledRow.rows[0]?.whitelist_enabled ?? true;
 
   return (
     <Box
@@ -81,13 +133,28 @@ export default async function SettingsPage() {
         }}
       >
         <Toolbar>
-          <Stack direction="row" spacing={1.2} sx={{ alignItems: "center", flexGrow: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1.2}
+            sx={{ alignItems: "center", flexGrow: 1 }}
+          >
+            <Link href="/inbox" style={{ textDecoration: "none" }}>
+              <IconButton color="inherit" edge="start" sx={{ mr: 0.5 }}>
+                <ArrowBackRoundedIcon />
+              </IconButton>
+            </Link>
             <SettingsRoundedIcon color="primary" />
             <Typography variant="h6">Settings</Typography>
           </Stack>
-          <Link href="/inbox" style={{ textDecoration: "none" }}>
-            <Button startIcon={<ArrowBackRoundedIcon />}>Back to inbox</Button>
-          </Link>
+          <Box component="form" action={handleSignOut} sx={{ mr: 1 }}>
+            <Button
+              type="submit"
+              color="inherit"
+              startIcon={<LogoutRoundedIcon />}
+            >
+              Log out
+            </Button>
+          </Box>
           <ThemeModeToggle />
         </Toolbar>
       </AppBar>
@@ -102,7 +169,9 @@ export default async function SettingsPage() {
                     Your forwarding address
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    Add this address to auto-forward rules in your email app. Every forwarded message is processed by AI and appears in your inbox.
+                    Add this address to auto-forward rules in your email app.
+                    Every forwarded message is processed by AI and appears in
+                    your inbox.
                   </Typography>
                 </Box>
                 <Divider />
@@ -119,11 +188,40 @@ export default async function SettingsPage() {
                     Sender whitelist
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    Add the email address that is configured to auto-forward into your agent address. This whitelist checks the forwarding sender mailbox, not the original recipient in the email thread.
+                    Add the email address that is configured to auto-forward
+                    into your agent address. This whitelist checks the
+                    forwarding sender mailbox, not the original recipient in the
+                    email thread.
                   </Typography>
                 </Box>
                 <Divider />
-                <SenderWhitelist initialEntries={whitelistEntries} />
+                <SenderWhitelist
+                  initialEntries={whitelistEntries}
+                  initialEnabled={whitelistEnabled}
+                />
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="h5" sx={{ mb: 0.5 }}>
+                    Category prompts
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2">
+                    Customize how AI should analyze each category after the
+                    first-stage classifier picks a category.
+                  </Typography>
+                </Box>
+                <Divider />
+                <CategoryPromptsEditor
+                  key={categoryPrompts
+                    .map((item) => item.categoryKey)
+                    .join("|")}
+                  initialCategories={categoryPrompts}
+                />
               </Stack>
             </CardContent>
           </Card>
@@ -136,7 +234,8 @@ export default async function SettingsPage() {
                     AI rules
                   </Typography>
                   <Typography color="text.secondary" variant="body2">
-                    Write plain-language rules to guide classification and actions. Rules are applied during processing.
+                    Write plain-language rules to guide classification and
+                    actions. Rules are applied during processing.
                   </Typography>
                 </Box>
                 <Divider />
@@ -144,6 +243,36 @@ export default async function SettingsPage() {
               </Stack>
             </CardContent>
           </Card>
+
+          {process.env.VAPID_PUBLIC_KEY && (
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Box>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "center", mb: 0.5 }}
+                    >
+                      <NotificationsRoundedIcon
+                        fontSize="small"
+                        color="primary"
+                      />
+                      <Typography variant="h5">Notifications</Typography>
+                    </Stack>
+                    <Typography color="text.secondary" variant="body2">
+                      Receive a browser push notification when a priority email
+                      arrives.
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  <NotificationToggle
+                    vapidPublicKey={process.env.VAPID_PUBLIC_KEY}
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
         </Stack>
       </Container>
     </Box>

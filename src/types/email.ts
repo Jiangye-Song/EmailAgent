@@ -1,5 +1,7 @@
 // ─── Core email types used across the whole pipeline ─────────────────────────
 
+import type { CalendarEvent } from "@/types/db";
+
 export type EmailAttachment = {
   filename: string;
   mimeType: string;
@@ -24,12 +26,16 @@ export type Email = {
 
 // ─── AI processing output ────────────────────────────────────────────────────
 
-export type EmailCategory =
-  | "newsletter"
-  | "alert"
-  | "personal"
-  | "promotion"
-  | "other";
+export const EMAIL_CATEGORIES = [
+  "newsletter",
+  "alert",
+  "personal",
+  "promotion",
+  "other",
+] as const;
+
+export type DefaultEmailCategory = (typeof EMAIL_CATEGORIES)[number];
+export type EmailCategory = string;
 
 export type RecommendedAction = "archive" | "keep" | "draft_reply";
 
@@ -43,6 +49,7 @@ export type ProcessedActionButton = {
 export type ProcessedEmail = {
   emailId: string;
   category: EmailCategory;
+  isPriority: boolean;
   /** ≤ 2 sentence summary */
   summary: string;
   /** Extracted action items */
@@ -50,6 +57,8 @@ export type ProcessedEmail = {
   /** Optional, structured actions that can be rendered as buttons */
   actionButtons?: ProcessedActionButton[];
   recommendedAction: RecommendedAction;
+  draftBody?: string;
+  calendarEvents?: CalendarEvent[];
   /** User rules triggered */
   ruleMatches?: string[];
 };

@@ -10,10 +10,16 @@ create table if not exists users (
   email               text        unique not null,
   "emailVerified"     timestamptz,
   image               text,
-  password_hash       text,                    -- bcrypt hash (null for OAuth users)
-  forwarding_address  text        unique,      -- e.g. abc12345@emailagent.top
-  created_at          timestamptz default now()
+  password_hash           text,                    -- bcrypt hash (null for OAuth users)
+  forwarding_address      text        unique,      -- e.g. abc12345@emailagent.top
+  onboarding_completed    boolean     not null default false,
+  whitelist_enabled       boolean     not null default false,
+  created_at              timestamptz default now()
 );
+
+-- Keep existing databases in sync when this canonical schema is reapplied.
+alter table users add column if not exists whitelist_enabled boolean not null default false;
+alter table users alter column whitelist_enabled set default false;
 
 create table if not exists accounts (
   id                  uuid  primary key default uuid_generate_v4(),
@@ -59,6 +65,7 @@ create table if not exists email_records (
   action_buttons     jsonb       default '[]',
   is_read            boolean     not null default false,
   is_starred         boolean     not null default false,
+  is_priority        boolean     not null default false,
   recommended_action text        check (recommended_action in ('archive','keep','draft_reply')),
   action_status      text        check (action_status in ('pending','approved','rejected','executed')) default 'pending',
   raw_body           text,                             -- full plain-text body of the forwarded email
@@ -71,6 +78,8 @@ create table if not exists email_records (
 
 create index if not exists email_records_user_idx    on email_records (user_id);
 create index if not exists email_records_received_idx on email_records (received_at desc);
+create index if not exists email_records_user_priority_idx
+  on email_records (user_id, is_priority, received_at desc);
 
 create index if not exists email_records_embedding_idx
   on email_records using hnsw (embedding vector_cosine_ops);
@@ -92,6 +101,56 @@ create table if not exists user_rules (
   created_at timestamptz default now()
 );
 
+-- User-managed categories. Users can add/remove categories over time.
+create table if not exists user_categories (
+  id           uuid        primary key default uuid_generate_v4(),
+  user_id      uuid        not null references users(id) on delete cascade,
+  category_key text        not null,
+  display_name text        not null,
+  is_active    boolean     not null default true,
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now(),
+  unique (user_id, category_key)
+);
+
+-- Per-user category prompt used by the category-specialist analysis agent.
+create table if not exists user_category_prompts (
+  id         uuid        primary key default uuid_generate_v4(),
+  user_id    uuid        not null references users(id) on delete cascade,
+  category   text        not null,
+  prompt     text        not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, category),
+  foreign key (user_id, category) references user_categories (user_id, category_key) on delete cascade
+);
+
+create or replace function set_user_category_prompts_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create or replace function set_user_categories_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_user_category_prompts_updated_at on user_category_prompts;
+create trigger trg_user_category_prompts_updated_at
+before update on user_category_prompts
+for each row execute function set_user_category_prompts_updated_at();
+
+drop trigger if exists trg_user_categories_updated_at on user_categories;
+create trigger trg_user_categories_updated_at
+before update on user_categories
+for each row execute function set_user_categories_updated_at();
+
 -- Authorized senders who can forward to each user's address
 create table if not exists sender_whitelist (
   id             uuid        primary key default uuid_generate_v4(),
@@ -100,4 +159,14 @@ create table if not exists sender_whitelist (
   sender_domain  text,                  -- domain match, e.g. "company.com" (optional)
   created_at     timestamptz default now(),
   unique (user_id, sender_email)
+);
+
+-- Web Push subscriptions for browser notifications
+create table if not exists push_subscriptions (
+  id           uuid        primary key default uuid_generate_v4(),
+  user_id      uuid        not null references users(id) on delete cascade,
+  endpoint     text        not null unique,
+  p256dh       text        not null,
+  auth         text        not null,
+  created_at   timestamptz default now()
 );

@@ -1,21 +1,20 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import OpenAI from "openai";
 
 /**
  * Custom fetch that disables Qwen3's thinking/chain-of-thought mode.
  *
  * All Qwen3 models (qwen3.6-flash, qwen3.7-plus, qwen3.7-max) have thinking
  * enabled by default. This outputs a <think>…</think> reasoning block before
- * the actual response text, which breaks generateObject's JSON parser.
+ * the actual response text, which breaks JSON parsing.
  *
- * Setting `enable_thinking: false` switches the models to direct-response mode,
- * which is what we need for structured output generation.
+ * Setting `enable_thinking: false` switches the models to direct-response mode.
  */
 const fetchNoThinking: typeof globalThis.fetch = async (url, options) => {
   if (options?.body && typeof options.body === "string") {
     try {
       const body = JSON.parse(options.body) as Record<string, unknown>;
       // Only inject on chat/text generation calls (not embeddings)
-      if ("messages" in body) {
+      if ("messages" in body && Array.isArray(body.messages)) {
         body.enable_thinking = false;
       }
       return globalThis.fetch(url as string, {
@@ -29,39 +28,25 @@ const fetchNoThinking: typeof globalThis.fetch = async (url, options) => {
   return globalThis.fetch(url as string, options as RequestInit);
 };
 
-/**
- * Qwen Cloud provider using @ai-sdk/openai-compatible.
- *
- * We use openai-compatible (not @ai-sdk/openai) because:
- * - @ai-sdk/openai@beta (AI SDK 6) defaults to the OpenAI Responses API (/v1/responses)
- * - Qwen Cloud only implements the Chat Completions API (/v1/chat/completions)
- * - @ai-sdk/openai-compatible always uses Chat Completions — correct for all
- *   third-party OpenAI-compatible providers.
- */
-const qwenProvider = createOpenAICompatible({
-  name: "qwen",
+export const qwenClient = new OpenAI({
+  apiKey: process.env.QWEN_API_KEY ?? "",
   baseURL:
     process.env.QWEN_BASE_URL ??
     "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-  apiKey: process.env.QWEN_API_KEY ?? "",
   fetch: fetchNoThinking,
 });
 
-// ─── Language models ──────────────────────────────────────────────────────────
+// ─── Model name constants ─────────────────────────────────────────────────────
 
 /** Fast + cheap: email classification */
-export const qwenFlash = qwenProvider.chatModel("qwen3.6-flash");
+export const QWEN_FLASH = "qwen3.6-flash";
 
 /** Balanced: summarization, todo extraction, draft replies */
-export const qwenPlus = qwenProvider.chatModel("qwen3.7-plus");
+export const QWEN_PLUS = "qwen3.7-plus";
 
 /** Complex reasoning: rule evaluation, calendar parsing */
-export const qwenMax = qwenProvider.chatModel("qwen3.7-max");
+export const QWEN_MAX = "qwen3.7-max";
 
-// ─── Embedding model ──────────────────────────────────────────────────────────
-
-/** 1024-dim embeddings for pgvector semantic search (text-embedding-v4 default) */
-export const qwenEmbedding = qwenProvider.textEmbeddingModel(
-  "text-embedding-v4",
-);
+/** 1024-dim embeddings for pgvector semantic search */
+export const QWEN_EMBEDDING = "text-embedding-v4";
 

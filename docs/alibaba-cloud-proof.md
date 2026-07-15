@@ -1,52 +1,59 @@
 # Alibaba Cloud Deployment Proof
 
-This document demonstrates that the Email Digest Agent backend is running on Alibaba Cloud.
+This document demonstrates that EmailAgent application is deployed on Alibaba Cloud ECS with a reverse proxy.
 
-## Services Used
+## Services Actually Used
 
 | Service | Purpose | Region |
 |---|---|---|
-| **Function Compute 3.0** | Hosts the Next.js API routes (standalone container) | ap-southeast-1 (Singapore) |
-| **PolarDB for PostgreSQL** | Single DB — auth sessions, OAuth tokens, email records, user rules | ap-southeast-1 |
-| **OSS (Object Storage)** | Stores digest exports and email attachments | oss-ap-southeast-1 |
-| **ACR (Container Registry)** | Stores the Docker image for Function Compute | ap-southeast-1 |
+| **Alibaba Cloud ECS** | Hosts the Next.js production server | China (Hong Kong) |
+| **Alibaba Cloud PolarDB for PostgreSQL** | Application database for users, sessions, email records, rules | China (Hong Kong) |
 
-## Function Compute Endpoint
+## Compute Proof (ECS)
 
-> **TODO:** Replace with actual deployed URL after deployment.
+- **Instance name:** launch-advisor-20260706
+- **Instance ID:** i-j6c8cye7henjr2rgx825
+- **Public IP:** 47.86.108.18
+- **Status:** Running
+
+Screenshot evidence is included in the hackathon submission showing this ECS instance in the Alibaba Cloud console.
+
+Deployment note: the app is exposed through reverse proxy on standard web ports (80/443). Port 3000 is not publicly exposed.
+
+## Live Application Endpoint
+
+Public entry points:
 
 ```
-https://<account-id>.<region>.fc.aliyuncs.com/2016-08-15/proxy/<service>/<function>/
+https://emailagent.top/
+```
+
+or
+
+```
+http://47.86.108.18
 ```
 
 ## Live API Call Proof
 
-Below is an example `curl` call to the deployed Function Compute endpoint proving the backend is live on Alibaba Cloud:
+Use an existing route from this project to prove backend is live. Example:
 
 ```bash
-# Replace <FC_URL> with the actual Function Compute HTTP trigger URL
-curl -X POST https://<FC_URL>/api/process-emails \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"limit": 5}'
+curl -i https://emailagent.top/api/auth/session
 ```
 
-## OSS Bucket
+Fallback test URL (HTTP):
 
-- **Bucket name:** `email-agent-assets`
-- **Region:** `oss-ap-southeast-1`
-- **Usage:** Daily digest JSON exports are written here by `src/lib/oss.ts`
+```bash
+curl -i http://47.86.108.18/api/auth/session
+```
+
+Expected result: HTTP response from the deployed app route (status + JSON body).
 
 ## Code References
 
-- `src/lib/oss.ts` — Alibaba Cloud OSS upload/download using `ali-oss` SDK
-- `src/lib/db.ts` — PolarDB PostgreSQL connection via `pg` driver
-- `Dockerfile` — Container image deployed to Alibaba Cloud Function Compute
-- `.github/workflows/deploy.yml` *(planned)* — CI/CD push to ACR + FC deploy
+- `src/lib/db.ts` - PostgreSQL connection used for PolarDB connectivity
+- `src/auth.ts` - NextAuth server configuration running on the deployed backend
+- `src/app/api/auth/[...nextauth]/route.ts` - Auth API route exposed by the running backend
+- `ecosystem.config.json` - Production process configuration for the Node.js app
 
-## Proof Recording
-
-> **TODO:** Add link to screen recording showing:
-> 1. Alibaba Cloud Function Compute console with running function
-> 2. Live HTTP request hitting the FC endpoint
-> 3. PolarDB console showing data written by the function

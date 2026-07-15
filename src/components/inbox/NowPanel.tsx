@@ -197,19 +197,28 @@ export function NowPanel({ records, onViewEmail }: Props) {
                 </Stack>
                 <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", pt: 1 }}>
                   <Box sx={{ justifySelf: "start" }}>
-                    <Tooltip title="View detail">
-                      <IconButton size="small" aria-label="View email detail" onClick={() => { onViewEmail(nextPriority.id); setAnchorEl(null); }}>
-                        <LaunchRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<LaunchRoundedIcon fontSize="small" />}
+                      onClick={() => { onViewEmail(nextPriority.id); setAnchorEl(null); }}
+                      sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700 }}
+                    >
+                      View Detail
+                    </Button>
                   </Box>
-                  <Typography variant="caption" color="text.secondary">Priority email</Typography>
                   <Box sx={{ justifySelf: "end" }}>
-                    <Tooltip title="Mark as read">
-                      <IconButton size="small" color="primary" aria-label="Mark email as read" onClick={handleMarkRead} disabled={isPending}>
-                        <MarkEmailReadRoundedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<MarkEmailReadRoundedIcon fontSize="small" />}
+                      onClick={handleMarkRead}
+                      disabled={isPending}
+                      sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700 }}
+                    >
+                      Mark as Read
+                    </Button>
                   </Box>
                 </Box>
               </Stack>

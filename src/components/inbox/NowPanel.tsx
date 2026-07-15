@@ -147,7 +147,10 @@ export function NowPanel({ records, onViewEmail }: Props) {
           }}
         >
           <Box sx={{ px: 2.5, py: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack
+              direction="row"
+              sx={{ justifyContent: "space-between", alignItems: "center" }}
+            >
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.1}}>
                   Now
@@ -188,7 +191,7 @@ export function NowPanel({ records, onViewEmail }: Props) {
                 >
                   <ReactMarkdown>{nextPriority.summary || "No summary available."}</ReactMarkdown>
                 </Box>
-                <Stack direction="row" justifyContent="center" spacing={1} sx={{ pt: 0.5 }}>
+                <Stack direction="row" spacing={1} sx={{ pt: 0.5, justifyContent: "center" }}>
                   {(nextPriority.action_buttons ?? []).map((action, index) => (
                     <Tooltip key={`${action.kind}-${index}`} title={action.label}>
                       <span>

@@ -30,11 +30,7 @@ jobs:
             echo "→ Building..."
             pnpm build
 
-            echo "→ Copying static assets..."
-            cp -r public .next/standalone/public
-            cp -r .next/static .next/standalone/.next/static
-
             echo "→ Restarting app..."
-            pm2 restart ecosystem.config.json
+            pm2 startOrRestart ecosystem.config.json --update-env
 
             echo "✓ Deploy complete"

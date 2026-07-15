@@ -17,7 +17,11 @@ import {
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import LaunchRoundedIcon from "@mui/icons-material/LaunchRounded";
 import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
-import { markEmailRead, removeEmail, toggleStarEmail } from "@/lib/actions/email-actions";
+import {
+  markEmailRead,
+  removeEmail,
+  toggleStarEmail,
+} from "@/lib/actions/email-actions";
 import type { EmailActionButton, EmailRecord } from "@/types/db";
 
 type Props = {
@@ -54,7 +58,8 @@ export function NowPanel({ records, onViewEmail }: Props) {
   );
   const priorityToday = todayRecords.filter((record) => record.is_priority);
   const additionalUnreadPriorityCount =
-    records.filter((record) => record.is_priority && !record.is_read).length - 1;
+    records.filter((record) => record.is_priority && !record.is_read).length -
+    1;
   const topCategory = useMemo(() => {
     const counts = new Map<string, number>();
     for (const record of todayRecords) {
@@ -65,7 +70,10 @@ export function NowPanel({ records, onViewEmail }: Props) {
   }, [todayRecords]);
 
   const nextPriority = records.find(
-    (record) => record.is_priority && !record.is_read && !dismissedIds.includes(record.id),
+    (record) =>
+      record.is_priority &&
+      !record.is_read &&
+      !dismissedIds.includes(record.id),
   );
 
   function runAction(action: EmailActionButton) {
@@ -140,7 +148,10 @@ export function NowPanel({ records, onViewEmail }: Props) {
               sx={{ justifyContent: "space-between", alignItems: "center" }}
             >
               <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.1}}>
+                <Typography
+                  variant="h5"
+                  sx={{ fontWeight: 800, lineHeight: 1.1 }}
+                >
                   Now
                 </Typography>
               </Box>
@@ -162,10 +173,17 @@ export function NowPanel({ records, onViewEmail }: Props) {
                   <Typography variant="caption" color="text.secondary" noWrap>
                     {nextPriority.sender}
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 750, lineHeight: 1.25 }}>
+                  <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 750, lineHeight: 1.25 }}
+                  >
                     {nextPriority.subject}
                   </Typography>
-                  <Chip label={displayCategory(nextPriority.category)} size="small" sx={{ mt: 1 }} />
+                  <Chip
+                    label={displayCategory(nextPriority.category)}
+                    size="small"
+                    sx={{ mt: 1 }}
+                  />
                 </Box>
                 <Box
                   sx={{
@@ -177,36 +195,73 @@ export function NowPanel({ records, onViewEmail }: Props) {
                     "& ul, & ol": { mt: 0.5, pl: 2.5 },
                   }}
                 >
-                  <ReactMarkdown>{nextPriority.summary || "No summary available."}</ReactMarkdown>
+                  <ReactMarkdown>
+                    {nextPriority.summary || "No summary available."}
+                  </ReactMarkdown>
                 </Box>
-                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", pt: 0.5, justifyContent: "center" }}>
-                  {(nextPriority.action_buttons ?? []).map((action, index) => (
-                    <Button
-                      key={`${action.kind}-${index}`}
-                      size="small"
-                      variant="contained"
-                      color={action.kind === "remove" ? "error" : action.kind === "star" ? "warning" : "primary"}
-                      aria-label={action.label}
-                      disabled={isPending || (action.kind === "url" && !action.href)}
-                      onClick={() => runAction(action)}
-                      sx={{ borderRadius: 999, px: 1.75, textTransform: "none", fontWeight: 700 }}
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
-                </Stack>
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", pt: 1 }}>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto 1fr",
+                    alignItems: "center",
+                    pt: 1,
+                  }}
+                >
                   <Box sx={{ justifySelf: "start" }}>
                     <Button
                       size="small"
                       variant="outlined"
                       startIcon={<LaunchRoundedIcon fontSize="small" />}
-                      onClick={() => { onViewEmail(nextPriority.id); setAnchorEl(null); }}
-                      sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700 }}
+                      onClick={() => {
+                        onViewEmail(nextPriority.id);
+                        setAnchorEl(null);
+                      }}
+                      sx={{
+                        borderRadius: 999,
+                        textTransform: "none",
+                        fontWeight: 700,
+                      }}
                     >
                       View Detail
                     </Button>
                   </Box>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{ flexWrap: "wrap", pt: 0.5, justifyContent: "center" }}
+                  >
+                    {(nextPriority.action_buttons ?? []).map(
+                      (action, index) => (
+                        <Button
+                          key={`${action.kind}-${index}`}
+                          size="small"
+                          variant="contained"
+                          color={
+                            action.kind === "remove"
+                              ? "error"
+                              : action.kind === "star"
+                                ? "warning"
+                                : "primary"
+                          }
+                          aria-label={action.label}
+                          disabled={
+                            isPending || (action.kind === "url" && !action.href)
+                          }
+                          onClick={() => runAction(action)}
+                          sx={{
+                            borderRadius: 999,
+                            px: 1.75,
+                            textTransform: "none",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {action.label}
+                        </Button>
+                      ),
+                    )}
+                  </Stack>
                   <Box sx={{ justifySelf: "end" }}>
                     <Button
                       size="small"
@@ -215,7 +270,11 @@ export function NowPanel({ records, onViewEmail }: Props) {
                       startIcon={<MarkEmailReadRoundedIcon fontSize="small" />}
                       onClick={handleMarkRead}
                       disabled={isPending}
-                      sx={{ borderRadius: 999, textTransform: "none", fontWeight: 700 }}
+                      sx={{
+                        borderRadius: 999,
+                        textTransform: "none",
+                        fontWeight: 700,
+                      }}
                     >
                       Mark as Read
                     </Button>
@@ -224,8 +283,14 @@ export function NowPanel({ records, onViewEmail }: Props) {
               </Stack>
             ) : (
               <Box sx={{ py: 7, textAlign: "center" }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>You&apos;re all caught up</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  You&apos;re all caught up
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
                   No unread priority emails right now.
                 </Typography>
               </Box>
@@ -236,15 +301,25 @@ export function NowPanel({ records, onViewEmail }: Props) {
           <Box sx={{ p: 2.5 }}>
             <Stack direction="row" spacing={1}>
               <Box sx={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>{todayRecords.length}</Typography>
-                <Typography variant="caption" color="text.secondary">Emails today</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  {todayRecords.length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Emails today
+                </Typography>
               </Box>
               <Box sx={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>{priorityToday.length}</Typography>
-                <Typography variant="caption" color="text.secondary">Priority today</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  {priorityToday.length}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Priority today
+                </Typography>
               </Box>
               <Box sx={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>{topCategory?.[1] ?? 0}</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  {topCategory?.[1] ?? 0}
+                </Typography>
                 <Typography variant="caption" color="text.secondary" noWrap>
                   {topCategory ? displayCategory(topCategory[0]) : "All"}
                 </Typography>

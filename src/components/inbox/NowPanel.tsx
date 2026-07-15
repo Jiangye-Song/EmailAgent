@@ -221,9 +221,19 @@ export function NowPanel({ records, onViewEmail }: Props) {
                         borderRadius: 999,
                         textTransform: "none",
                         fontWeight: 700,
+                        "@media (max-width: 599.95px)": {
+                          width: 48,
+                          height: 48,
+                          minWidth: 48,
+                          p: 0,
+                          "& .MuiButton-startIcon": { m: 0 },
+                          ".button-label": { display: "none" },
+                        },
                       }}
                     >
-                      View Detail
+                      <Box component="span" className="button-label">
+                        View Detail
+                      </Box>
                     </Button>
                   </Box>
                   <Stack
@@ -274,9 +284,19 @@ export function NowPanel({ records, onViewEmail }: Props) {
                         borderRadius: 999,
                         textTransform: "none",
                         fontWeight: 700,
+                        "@media (max-width: 599.95px)": {
+                          width: 48,
+                          height: 48,
+                          minWidth: 48,
+                          p: 0,
+                          "& .MuiButton-startIcon": { m: 0 },
+                          ".button-label": { display: "none" },
+                        },
                       }}
                     >
-                      Mark as Read
+                      <Box component="span" className="button-label">
+                        Mark as Read
+                      </Box>
                     </Button>
                   </Box>
                 </Box>

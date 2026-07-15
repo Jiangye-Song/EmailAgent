@@ -49,7 +49,9 @@ function displayCategory(category: string): string {
 }
 
 export function NowPanel({ records, onViewEmail }: Props) {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [isOpen, setIsOpen] = useState(() =>
+    records.some((record) => record.is_priority && !record.is_read),
+  );
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -109,16 +111,16 @@ export function NowPanel({ records, onViewEmail }: Props) {
     <>
       <Tooltip title="Now">
         <IconButton
-          color={anchorEl ? "primary" : "inherit"}
+          color={isOpen ? "primary" : "inherit"}
           aria-label="Open Now panel"
-          onClick={(event) => setAnchorEl(event.currentTarget)}
+          onClick={() => setIsOpen(true)}
         >
           <ListAltIcon />
         </IconButton>
       </Tooltip>
       <Dialog
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
         maxWidth={false}
         slotProps={{
           paper: {
@@ -166,7 +168,7 @@ export function NowPanel({ records, onViewEmail }: Props) {
               <IconButton
                 size="small"
                 aria-label="Close Now panel"
-                onClick={() => setAnchorEl(null)}
+                onClick={() => setIsOpen(false)}
               >
                 <CloseRoundedIcon />
               </IconButton>
@@ -223,7 +225,7 @@ export function NowPanel({ records, onViewEmail }: Props) {
                       startIcon={<LaunchRoundedIcon fontSize="small" />}
                       onClick={() => {
                         onViewEmail(nextPriority.id);
-                        setAnchorEl(null);
+                        setIsOpen(false);
                       }}
                       sx={{
                         borderRadius: 999,

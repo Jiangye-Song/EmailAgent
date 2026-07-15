@@ -21,8 +21,10 @@ jobs:
             set -e
             cd /app/email-agent
 
-            echo "→ Pulling latest code..."
-            git pull
+            echo "→ Syncing code to origin/${{ github.ref_name }}..."
+            git fetch --prune origin
+            git clean -fd -e .env -e .env.*
+            git reset --hard "origin/${{ github.ref_name }}"
 
             echo "→ Installing dependencies..."
             pnpm install --frozen-lockfile

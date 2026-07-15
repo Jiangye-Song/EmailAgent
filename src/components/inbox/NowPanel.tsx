@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import ListAltIcon from "@mui/icons-material/ListAlt";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import LaunchRoundedIcon from "@mui/icons-material/LaunchRounded";
 import MarkEmailReadRoundedIcon from "@mui/icons-material/MarkEmailReadRounded";
 import {
@@ -145,23 +146,30 @@ export function NowPanel({ records, onViewEmail }: Props) {
           <Box sx={{ px: 2.5, py: 2 }}>
             <Stack
               direction="row"
-              sx={{ justifyContent: "space-between", alignItems: "center" }}
+              sx={{ alignItems: "center" }}
             >
-              <Box>
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", flex: 1 }}>
                 <Typography
                   variant="h5"
                   sx={{ fontWeight: 800, lineHeight: 1.1 }}
                 >
                   Now
                 </Typography>
-              </Box>
-              {additionalUnreadPriorityCount > 0 && (
-                <Chip
-                  label={`+${additionalUnreadPriorityCount}`}
-                  size="small"
-                  color="warning"
-                />
-              )}
+                {additionalUnreadPriorityCount > 0 && (
+                  <Chip
+                    label={`+${additionalUnreadPriorityCount}`}
+                    size="small"
+                    color="warning"
+                  />
+                )}
+              </Stack>
+              <IconButton
+                size="small"
+                aria-label="Close Now panel"
+                onClick={() => setAnchorEl(null)}
+              >
+                <CloseRoundedIcon />
+              </IconButton>
             </Stack>
           </Box>
           <Divider />

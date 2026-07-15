@@ -1,6 +1,6 @@
 # Alibaba Cloud Deployment Proof
 
-This document demonstrates that EmailAgent backend is deployed on Alibaba Cloud.
+This document demonstrates that EmailAgent application is deployed on Alibaba Cloud ECS with a reverse proxy.
 
 ## Services Actually Used
 
@@ -18,18 +18,20 @@ This document demonstrates that EmailAgent backend is deployed on Alibaba Cloud.
 
 Screenshot evidence is included in the hackathon submission showing this ECS instance in the Alibaba Cloud console.
 
-## Live Backend Endpoint
+Deployment note: the app is exposed through reverse proxy on standard web ports (80/443). Port 3000 is not publicly exposed.
 
-Replace this with your real public app URL:
+## Live Application Endpoint
 
-```
-https://<your-domain-or-ip>
-```
-
-If you are exposing Next.js directly from ECS on port 3000, this can be:
+Public entry points:
 
 ```
-http://47.86.108.18:3000
+https://emailagent.top/
+```
+
+or
+
+```
+http://47.86.108.18
 ```
 
 ## Live API Call Proof
@@ -37,10 +39,16 @@ http://47.86.108.18:3000
 Use an existing route from this project to prove backend is live. Example:
 
 ```bash
-curl -i http://47.86.108.18:3000/api/auth/session
+curl -i https://emailagent.top/api/auth/session
 ```
 
-Expected result: HTTP response from Next.js/Auth route (status + JSON body).
+Fallback test URL (HTTP):
+
+```bash
+curl -i http://47.86.108.18/api/auth/session
+```
+
+Expected result: HTTP response from the deployed app route (status + JSON body).
 
 ## Code References
 

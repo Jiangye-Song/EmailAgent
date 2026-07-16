@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Email Digest Agent",
+  title: "EmailAgent | Start with what matters",
   description: "AI-powered email assistant — daily digest, classification, and action queue.",
 };
 

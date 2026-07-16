@@ -3,8 +3,9 @@ name: Deploy to Production
 on:
   push:
     branches:
+      - master
       - main
-      - feat/advanced-category
+  workflow_dispatch:
 
 jobs:
   deploy:

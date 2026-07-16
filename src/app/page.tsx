@@ -166,36 +166,37 @@ export default function Home() {
               </Stack>
 
               <Paper elevation={0} sx={{ overflow: "hidden", border: "1px solid", borderColor: "divider", boxShadow: isDark ? "0 24px 70px rgba(0,0,0,0.3)" : "0 24px 70px rgba(15,23,42,0.14)" }}>
-                <Box sx={{ px: 2, py: 1.5, bgcolor: isDark ? "#172033" : "#f1eee6", borderBottom: "1px solid", borderColor: "divider" }}>
+                <Box sx={{ px: 1.5, py: 1.15, bgcolor: isDark ? "#172033" : "#f1eee6", borderBottom: "1px solid", borderColor: "divider" }}>
                   <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
                     <Stack direction="row" spacing={0.6} sx={{ flex: 1, alignItems: "center" }}>
-                      <EmailRoundedIcon sx={{ color: "primary.main", fontSize: 19 }} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 750 }}>Your inbox</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 750, whiteSpace: "nowrap" }}>Email Digest Inbox</Typography>
                     </Stack>
-                    <Tooltip title="Semantic search"><IconButton size="small" aria-label="Search emails"><SearchRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title="Inbox settings"><IconButton size="small" aria-label="Inbox settings"><TuneRoundedIcon fontSize="small" /></IconButton></Tooltip>
+                    <Box sx={{ display: { xs: "none", sm: "block" }, flex: 1, maxWidth: 260, border: "1px solid", borderColor: "text.disabled", borderRadius: 999, px: 1.25, py: 0.65 }}><Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}><SearchRoundedIcon sx={{ fontSize: 15, color: "text.secondary" }} /><Typography variant="caption" color="text.secondary" noWrap>Search emails semantically</Typography></Stack></Box>
+                    <IconButton size="small" aria-label="Inbox settings"><TuneRoundedIcon fontSize="small" /></IconButton>
                   </Stack>
                 </Box>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "0.9fr 1.1fr" }, minHeight: 370 }}>
-                  <Box sx={{ borderRight: { sm: "1px solid" }, borderColor: "divider" }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "78px 0.95fr 1.3fr" }, minHeight: 410 }}>
+                  <Box sx={{ display: { xs: "none", sm: "block" }, borderRight: "1px solid", borderColor: "divider", bgcolor: isDark ? "#111827" : "#fbfaf6", p: 1 }}>
+                    <Stack spacing={1.25} sx={{ alignItems: "center" }}>
+                      <Box sx={{ width: 32, height: 32, borderRadius: 1.5, display: "grid", placeItems: "center", bgcolor: "primary.main", color: "primary.contrastText", mb: 0.75 }}><EmailRoundedIcon sx={{ fontSize: 18 }} /></Box>
+                      {["All", "Starred", "Work", "Focus", "Alerts", "Other"].map((label, index) => <Stack key={label} spacing={0.35} sx={{ width: "100%", alignItems: "center", color: index === 0 ? "primary.main" : "text.secondary", py: 0.45, borderRadius: 1, bgcolor: index === 0 ? alpha(theme.palette.primary.main, isDark ? 0.16 : 0.1) : "transparent" }}><Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: index === 0 ? "primary.main" : "text.disabled" }} /><Typography variant="caption" sx={{ fontSize: 9, fontWeight: index === 0 ? 700 : 500 }}>{label}</Typography></Stack>)}
+                    </Stack>
+                  </Box>
+                  <Box sx={{ borderRight: { sm: "1px solid" }, borderColor: "divider", minWidth: 0 }}>
                     <Stack direction="row" sx={{ px: 1.5, py: 1.25, justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>Today</Typography>
-                      <Chip label="2 new" size="small" color="primary" variant="outlined" />
+                      <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>All mail</Typography>
+                      <Chip label="3" size="small" color="primary" variant="outlined" />
                     </Stack>
                     {sampleEmails.map((email) => <PreviewEmail key={email.subject} {...email} />)}
+                    <Box sx={{ px: 1.5, py: 1.25, borderBottom: "1px solid", borderColor: "divider" }}><Typography variant="caption" color="text.secondary" noWrap>"Planning notes"</Typography><Typography variant="body2" noWrap sx={{ fontWeight: 600, mt: 0.35 }}>A few ideas for next month</Typography><Chip label="Personal" size="small" sx={{ mt: 0.8, fontSize: 10 }} /></Box>
                   </Box>
-                  <Box sx={{ display: { xs: "none", sm: "block" }, p: 2.25, bgcolor: "background.default" }}>
-                    <Stack spacing={2}>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                        <Box sx={{ width: 34, height: 34, borderRadius: 1.5, bgcolor: alpha("#0f766e", 0.14), color: "primary.main", display: "grid", placeItems: "center", fontWeight: 700 }}>M</Box>
-                        <Box><Typography variant="body2" sx={{ fontWeight: 700 }}>Maya Chen</Typography><Typography variant="caption" color="text.secondary">Today, 9:42 AM</Typography></Box>
-                      </Stack>
-                      <Typography variant="h6" sx={{ fontWeight: 750 }}>Your interview availability</Typography>
-                      <Box sx={{ p: 1.5, borderLeft: "3px solid", borderColor: "primary.main", bgcolor: alpha(theme.palette.primary.main, isDark ? 0.12 : 0.07) }}>
-                        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}><AutoAwesomeRoundedIcon sx={{ color: "primary.main", fontSize: 18, mt: 0.2 }} /><Box><Typography variant="caption" sx={{ color: "primary.main", fontWeight: 750, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI summary</Typography><Typography variant="body2" sx={{ mt: 0.5, lineHeight: 1.5 }}>The recruiting team is asking you to choose a time for the next interview by Friday.</Typography></Box></Stack>
-                      </Box>
-                      <Stack spacing={1}><Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Suggested next steps</Typography><Stack direction="row" spacing={1} sx={{ alignItems: "center" }}><CheckCircleRoundedIcon sx={{ color: "primary.main", fontSize: 18 }} /><Typography variant="body2">Choose an interview time</Typography></Stack><Stack direction="row" spacing={1} sx={{ alignItems: "center" }}><CheckCircleRoundedIcon sx={{ color: "primary.main", fontSize: 18 }} /><Typography variant="body2">Reply before Friday</Typography></Stack></Stack>
-                      <Button variant="contained" size="small" endIcon={<ArrowForwardRoundedIcon />}>Review action</Button>
+                  <Box sx={{ display: { xs: "none", sm: "block" }, bgcolor: "background.default", minWidth: 0 }}>
+                    <Box sx={{ px: 2, py: 1.45, borderBottom: "1px solid", borderColor: "divider" }}><Typography variant="h6" noWrap sx={{ fontSize: 15, fontWeight: 750 }}>Your interview availability</Typography><Typography variant="caption" color="text.secondary" noWrap>From: Maya Chen &nbsp; Today, 9:42 AM</Typography></Box>
+                    <Stack direction="row" spacing={0.75} sx={{ px: 1.5, py: 1.1, borderBottom: "1px solid", borderColor: "divider" }}><Button size="small" variant="outlined" sx={{ minWidth: 0, px: 1, fontSize: 10 }}>Star</Button><Button size="small" variant="outlined" sx={{ minWidth: 0, px: 1, fontSize: 10 }}>Reply</Button></Stack>
+                    <Stack spacing={1.3} sx={{ p: 1.5 }}>
+                      <Box sx={{ border: "1px solid", borderLeft: "3px solid", borderColor: "divider", borderLeftColor: "primary.main", bgcolor: "background.paper" }}><Box sx={{ px: 1.25, py: 0.8, borderBottom: "1px solid", borderColor: "divider" }}><Typography variant="caption" sx={{ fontWeight: 750, color: "primary.main", letterSpacing: "0.06em" }}>SUMMARY</Typography></Box><Typography variant="body2" sx={{ p: 1.25, lineHeight: 1.5 }}>The recruiting team is asking you to choose a time for the next interview by Friday.</Typography></Box>
+                      <Box sx={{ border: "1px solid", borderLeft: "3px solid", borderColor: "divider", borderLeftColor: "secondary.main", bgcolor: "background.paper" }}><Box sx={{ px: 1.25, py: 0.8, borderBottom: "1px solid", borderColor: "divider" }}><Typography variant="caption" sx={{ fontWeight: 750, color: "secondary.main", letterSpacing: "0.06em" }}>ACTION ITEMS</Typography></Box><Stack spacing={0.8} sx={{ p: 1.25 }}><Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}><CheckCircleRoundedIcon sx={{ color: "primary.main", fontSize: 15 }} /><Typography variant="caption">Choose an interview time</Typography></Stack><Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}><CheckCircleRoundedIcon sx={{ color: "primary.main", fontSize: 15 }} /><Typography variant="caption">Reply before Friday</Typography></Stack><Button variant="contained" size="small" endIcon={<ArrowForwardRoundedIcon />} sx={{ mt: 0.4, fontSize: 10 }}>Approve action</Button></Stack></Box>
+                      <Box sx={{ border: "1px solid", borderColor: "divider", bgcolor: "background.paper", px: 1.25, py: 1 }}><Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>ORIGINAL EMAIL</Typography></Box>
                     </Stack>
                   </Box>
                 </Box>

@@ -28,7 +28,23 @@ export async function GET(
     return new NextResponse("No calendar events", { status: 404 });
   }
 
-  const ics = generateIcs(calendar_events, subject);
+  const eventIndexParam = _req.nextUrl.searchParams.get("eventIndex");
+  const eventIndex =
+    eventIndexParam === null ? null : Number.parseInt(eventIndexParam, 10);
+  const selectedEvents =
+    eventIndex === null
+      ? calendar_events
+      : Number.isInteger(eventIndex) &&
+          eventIndex >= 0 &&
+          eventIndex < calendar_events.length
+        ? [calendar_events[eventIndex]]
+        : null;
+
+  if (!selectedEvents) {
+    return new NextResponse("No calendar events", { status: 404 });
+  }
+
+  const ics = generateIcs(selectedEvents, subject);
 
   return new NextResponse(ics, {
     headers: {

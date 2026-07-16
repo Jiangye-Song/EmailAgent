@@ -330,7 +330,7 @@ export function EmailDetail({ record, forwardingAddress, onBack }: Props) {
             size="small"
             startIcon={<EventRoundedIcon fontSize="small" />}
           >
-            Add to Cal
+            Add All to Cal
           </Button>
         )}
       </Stack>
@@ -472,22 +472,49 @@ export function EmailDetail({ record, forwardingAddress, onBack }: Props) {
               </Typography>
               <List dense disablePadding>
                 {rec.calendar_events?.map((evt, i) => (
-                  <ListItem key={i} disableGutters sx={{ py: 0.2 }}>
-                    <ListItemText
-                      primary={evt.title}
-                      slotProps={{
-                        primary: { variant: "body2", sx: { fontWeight: 600 } },
-                        secondary: { variant: "caption" },
+                  <ListItem
+                    key={i}
+                    disableGutters
+                    sx={{ py: 0.5, alignItems: "flex-start" }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: { xs: "column", sm: "row" },
+                        alignItems: { sm: "center" },
+                        justifyContent: "space-between",
+                        gap: 1,
+                        width: "100%",
                       }}
-                      secondary={
-                        <>
-                          {new Date(evt.start).toLocaleString()}
-                          {evt.end
-                            ? ` → ${new Date(evt.end).toLocaleString()}`
-                            : ""}
-                        </>
-                      }
-                    />
+                    >
+                      <ListItemText
+                        primary={evt.title}
+                        slotProps={{
+                          primary: { variant: "body2", sx: { fontWeight: 600 } },
+                          secondary: { variant: "caption" },
+                        }}
+                        secondary={
+                          <>
+                            {new Date(evt.start).toLocaleString()}
+                            {evt.end
+                              ? ` → ${new Date(evt.end).toLocaleString()}`
+                              : ""}
+                          </>
+                        }
+                        sx={{ m: 0, pr: 1 }}
+                      />
+                      <Button
+                        component="a"
+                        href={`/api/ics/${rec.id}?eventIndex=${i}`}
+                        download
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EventRoundedIcon fontSize="small" />}
+                        sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}
+                      >
+                        Add Event
+                      </Button>
+                    </Box>
                   </ListItem>
                 ))}
               </List>

@@ -328,8 +328,10 @@ async function processOneEmail(
             '- summary: max 2 sentences\n' +
             '- todos: concrete action items array\n' +
             '- actionButtons: optional array with actionLabel/actionLink/actionColor. ' +
+            '  Provide as many useful links from the email as possible, except links unrelated to the email content. ' +
             '  actionLabel must be a short verb phrase describing the action, e.g. "View Invoice", "Track Shipment", "Reset Password", "Join Meeting". ' +
-            '  Never use generic labels like "Open Link" or "Click Here".\n' +
+            '  Never use generic labels like "Open Link" or "Click Here". ' +
+            '  Use orange for actionColor when the button requires caution before the user clicks it.\n' +
             '- URLs in todos or actionButtons: copy the complete original URL, including protocol, path, query string, and fragment. ' +
             '  If the email wraps a URL in angle brackets like <https://example.com/path?x=1>, output https://example.com/path?x=1 without the surrounding < or >. ' +
             '  Never truncate a URL to only its first part and never include a trailing >.\n' +

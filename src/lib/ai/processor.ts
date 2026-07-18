@@ -74,6 +74,7 @@ function normalizeButtonTone(
   if (value === "default") return "default";
   if (value === "success") return "success";
   if (value === "warning") return "warning";
+  if (value === "orange") return "warning";
   if (value === "danger") return "danger";
   if (value === "accent") return "accent";
 
@@ -258,6 +259,15 @@ async function loadUserCategories(userId: string): Promise<UserCategoryConfig[]>
   return rows.map((row) => ({ key: row.category_key, label: row.display_name }));
 }
 
+async function loadUserForwardingAddress(userId: string): Promise<string | null> {
+  const { rows } = await pool.query<{ forwarding_address: string | null }>(
+    `SELECT forwarding_address FROM users WHERE id = $1`,
+    [userId],
+  );
+
+  return rows[0]?.forwarding_address ?? null;
+}
+
 // ─── Single email processing ──────────────────────────────────────────────────
 
 async function processOneEmail(
@@ -266,6 +276,7 @@ async function processOneEmail(
   userRules: string[],
   categoryPrompts: CategoryPromptMap,
   categories: UserCategoryConfig[],
+  forwardingAddress: string | null,
 ): Promise<ProcessedEmail> {
 
   // Truncate body to avoid token limits — first 3 000 chars is plenty for classification
@@ -323,6 +334,7 @@ async function processOneEmail(
             "You are stage 2 category-specialist analysis agent.\n\n" +
             `Selected category: ${category}.\n` +
             `Category-specific prompt:\n${categoryPrompt}\n\n` +
+            `User's system-generated forwarding address: ${forwardingAddress ?? "unknown"}.\n` +
             `${rulesContext}\n\n` +
             'Required fields:\n' +
             '- summary: max 2 sentences\n' +
@@ -335,6 +347,8 @@ async function processOneEmail(
             '- URLs in todos or actionButtons: copy the complete original URL, including protocol, path, query string, and fragment. ' +
             '  If the email wraps a URL in angle brackets like <https://example.com/path?x=1>, output https://example.com/path?x=1 without the surrounding < or >. ' +
             '  Never truncate a URL to only its first part and never include a trailing >.\n' +
+            '- Forwarding confirmations: if this email asks the user to confirm or accept email forwarding to the user\'s system-generated forwarding address above, include an accept/confirm action button using the confirmation link from the email so the user can continue using this product. ' +
+            '  Do not treat forwarding to that address as suspicious by itself.\n' +
             '- recommendedAction: archive|keep|draft_reply\n' +
             '- draftReply: optional string\n' +
             '- calendarEvents: array of inferred events (title, start, optional end/description/location)\n' +
@@ -455,13 +469,14 @@ export async function processEmailsBatched(
   userId: string,
   userRules: string[] = [],
 ): Promise<BatchResult> {
-  const [categoryPrompts, userCategories] = await Promise.all([
+  const [categoryPrompts, userCategories, forwardingAddress] = await Promise.all([
     loadUserCategoryPrompts(userId),
     loadUserCategories(userId),
+    loadUserForwardingAddress(userId),
   ]);
 
   const settled = await Promise.allSettled(
-    emails.map((email) => processOneEmail(email, userId, userRules, categoryPrompts, userCategories)),
+    emails.map((email) => processOneEmail(email, userId, userRules, categoryPrompts, userCategories, forwardingAddress)),
   );
 
   const results: ProcessedEmail[] = [];

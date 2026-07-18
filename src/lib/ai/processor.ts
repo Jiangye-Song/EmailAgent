@@ -105,11 +105,15 @@ function normalizeActionLinkToKind(
   return "url";
 }
 
+function normalizeActionLink(actionLink: string): string {
+  return actionLink.trim().replace(/^<(.+)>$/, "$1");
+}
+
 function normalizeActionButtons(rawButtons: RawActionButton[]): ProcessedActionButton[] {
   const buttons: ProcessedActionButton[] = [];
 
   for (const raw of rawButtons) {
-    const actionLink = (raw.actionLink ?? raw.href ?? "").trim();
+    const actionLink = normalizeActionLink(raw.actionLink ?? raw.href ?? "");
     if (!actionLink) continue;
 
     const kind = normalizeActionLinkToKind(actionLink);
@@ -326,6 +330,9 @@ async function processOneEmail(
             '- actionButtons: optional array with actionLabel/actionLink/actionColor. ' +
             '  actionLabel must be a short verb phrase describing the action, e.g. "View Invoice", "Track Shipment", "Reset Password", "Join Meeting". ' +
             '  Never use generic labels like "Open Link" or "Click Here".\n' +
+            '- URLs in todos or actionButtons: copy the complete original URL, including protocol, path, query string, and fragment. ' +
+            '  If the email wraps a URL in angle brackets like <https://example.com/path?x=1>, output https://example.com/path?x=1 without the surrounding < or >. ' +
+            '  Never truncate a URL to only its first part and never include a trailing >.\n' +
             '- recommendedAction: archive|keep|draft_reply\n' +
             '- draftReply: optional string\n' +
             '- calendarEvents: array of inferred events (title, start, optional end/description/location)\n' +
